@@ -1,0 +1,7 @@
+.env
+.DS_Store
+last_input.txt
+batch_statuses.json
+upload_mapping.json
+legacy/
+ISWC2026_resource_track_improvement_steps.txt
