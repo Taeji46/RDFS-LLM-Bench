@@ -1,6 +1,8 @@
-The datasets in this repository (data/lod-samples/, data/datasets/, data/llm-eval/tasks/)
-associated with "RDFS-LLM-Bench: A Benchmark for Evaluating RDF Schema Inference in LLMs"
-are licensed under the Creative Commons Attribution-ShareAlike 4.0 International License (CC BY-SA 4.0).
+The datasets and experimental results in this repository (data/lod-samples/, data/datasets/,
+data/llm-eval/tasks/, data/llm-eval/requests/, data/llm-eval/responses/, data/llm-eval/eval/,
+data/llm-eval/reports/) associated with "RDFS-LLM-Bench: A Benchmark for Evaluating RDF
+Schema Inference in LLMs" are licensed under the Creative Commons Attribution-ShareAlike 4.0
+International License (CC BY-SA 4.0).
 
 To view a copy of this license, visit https://creativecommons.org/licenses/by-sa/4.0/
 
@@ -14,6 +16,6 @@ This dataset is derived from the following sources:
 
 - DBpedia (https://dbpedia.org) — licensed under CC BY-SA 3.0
 - Wikidata (https://www.wikidata.org) — licensed under CC0 1.0
-- LOV: Linked Open Vocabularies (https://lov.linkeddata.es) — licensed under CC BY 4.0
+- Linked Open Vocabularies (https://lov.linkeddata.es) — licensed under CC BY 4.0
 
 Data was collected via SPARQL queries against the public endpoints of the above sources.

@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![License: CC BY-SA 4.0](https://img.shields.io/badge/Data%20License-CC%20BY--SA%204.0-lightgrey.svg)](LICENSE-DATA)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19867258.svg)](https://doi.org/10.5281/zenodo.19867258)
 
 LLM における RDF Schema 推論を評価するためのベンチマークです。
 
@@ -551,13 +552,13 @@ SPARQL エンドポイントの負荷や一時的不安定が原因です。時�
 
 **コード** (`scripts/`): [MIT License](LICENSE) © 2026 Taichi Hosokawa
 
-**データ** (`data/lod-samples/`, `data/datasets/`, `data/llm-eval/tasks/`): [CC BY-SA 4.0](LICENSE-DATA)
+**データ** (`data/lod-samples/`, `data/datasets/`, `data/llm-eval/`): [CC BY-SA 4.0](LICENSE-DATA)
 
 本データセットは以下のソースから派生しています：
 
 - [DBpedia](https://dbpedia.org) — CC BY-SA 3.0
 - [Wikidata](https://www.wikidata.org) — CC0 1.0
-- [LOV: Linked Open Vocabularies](https://lov.linkeddata.es) — CC BY 4.0
+- [Linked Open Vocabularies](https://lov.linkeddata.es) — CC BY 4.0
 
 データは各ソースの公開 SPARQL エンドポイントへのクエリにより収集しました。
 

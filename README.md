@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![License: CC BY-SA 4.0](https://img.shields.io/badge/Data%20License-CC%20BY--SA%204.0-lightgrey.svg)](LICENSE-DATA)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19867258.svg)](https://doi.org/10.5281/zenodo.19867258)
 
 A Benchmark for Evaluating RDF Schema Inference in LLMs.
 
@@ -551,13 +552,13 @@ The path in `scripts/build-dataset/lod-sample-config.json` does not match the ac
 
 **Code** (`scripts/`): [MIT License](LICENSE) © 2026 Taichi Hosokawa
 
-**Data** (`data/lod-samples/`, `data/datasets/`, `data/llm-eval/tasks/`): [CC BY-SA 4.0](LICENSE-DATA)
+**Data** (`data/lod-samples/`, `data/datasets/`, `data/llm-eval/`): [CC BY-SA 4.0](LICENSE-DATA)
 
 The datasets are derived from the following sources:
 
 - [DBpedia](https://dbpedia.org) — CC BY-SA 3.0
 - [Wikidata](https://www.wikidata.org) — CC0 1.0
-- [LOV: Linked Open Vocabularies](https://lov.linkeddata.es) — CC BY 4.0
+- [Linked Open Vocabularies](https://lov.linkeddata.es) — CC BY 4.0
 
 Data was collected via SPARQL queries against the public endpoints of the above sources.
 
