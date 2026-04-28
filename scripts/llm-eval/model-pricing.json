@@ -1,0 +1,27 @@
+{
+  "_comment": "Pricing in USD per 1M tokens. Set to 0.0 for local/free models.",
+  "gpt-4o-2024-08-06": {
+    "input_per_1m":  1.25,
+    "output_per_1m": 5.00
+  },
+  "gpt-4o-mini-2024-07-18": {
+    "input_per_1m":  0.075,
+    "output_per_1m": 0.30
+  },
+  "gpt-oss-20b": {
+    "input_per_1m":  0.03,
+    "output_per_1m": 0.14
+  },
+  "gpt-oss-120b": {
+    "input_per_1m":  0.039,
+    "output_per_1m": 0.19
+  },
+  "llama3.1-70b": {
+    "input_per_1m":  0.40,
+    "output_per_1m": 0.40
+  },
+  "llama3.1-8b": {
+    "input_per_1m":  0.0,
+    "output_per_1m": 0.0
+  }
+}

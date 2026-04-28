@@ -1,0 +1,175 @@
+"""Rule-level analysis: per-single-rule F1 broken down by dataset type.
+
+For each record with rule_info == "full", expand the `rules` column
+(e.g. "rdfs2,rdfs3") to assign f1_triple to each constituent rule.
+Average per (dataset_type, model, single_rule) across all operation_types
+and n_rules.
+
+One sheet per dataset type (rk / ls / gs / gsc / ns / nsc / rva).
+Each sheet: rows = rules (rdfs2~rdfs11), columns = models.
+
+Reads:  data/llm-eval/reports/{mode}/scores-{mode}.csv
+Writes: data/llm-eval/reports/{mode}/rule_level_analysis-{mode}.xlsx
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+from collections import defaultdict
+from pathlib import Path
+from statistics import mean
+
+import openpyxl
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
+
+THIS_FILE = Path(__file__).resolve()
+PROJECT_ROOT = THIS_FILE.parents[3]
+DEFAULT_REPORT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "reports"
+
+ALL_RULES = ["rdfs2", "rdfs3", "rdfs5", "rdfs7", "rdfs9", "rdfs11"]
+DATASET_TYPES = ["rk", "ls", "gs", "gsc", "ns", "nsc", "rva"]
+
+
+def _relpath(p: Path) -> str:
+    try:
+        return p.relative_to(PROJECT_ROOT).as_posix()
+    except ValueError:
+        return str(p)
+
+
+def _float(v: str) -> float | None:
+    try:
+        return float(v) if v != "" else None
+    except ValueError:
+        return None
+
+
+def load_scores(csv_path: Path) -> list[dict]:
+    with csv_path.open(encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def compute(records: list[dict]) -> dict[str, dict[str, dict[str, float | None]]]:
+    """Returns {dataset_type: {model: {single_rule: mean_f1}}}.
+
+    Averaging procedure (same logic as composite metrics):
+      For each (dataset_type, model, single_rule, n_rule):
+        mean f1_triple across all rule combinations containing that rule.
+      Then average the n_rule-level means with equal weight.
+    """
+    # (dataset_type, model, single_rule, n_rule) -> [f1_triple values]
+    buckets: dict[tuple[str, str, str, int], list[float]] = defaultdict(list)
+
+    for rec in records:
+        if rec.get("rule_info") != "full":
+            continue
+        f1 = _float(rec.get("f1_triple", ""))
+        if f1 is None:
+            continue
+        model = rec["model"]
+        ds = rec["dataset_type"]
+        n_rule = int(rec["n_rule"])
+        rules = [r.strip() for r in rec.get("rules", "").split(",") if r.strip()]
+        for rule in rules:
+            buckets[(ds, model, rule, n_rule)].append(f1)
+
+    models = sorted({k[1] for k in buckets})
+    n_rules = sorted({k[3] for k in buckets})
+
+    result: dict[str, dict[str, dict[str, float | None]]] = {}
+    for ds in DATASET_TYPES:
+        result[ds] = {}
+        for model in models:
+            result[ds][model] = {}
+            for rule in ALL_RULES:
+                # average within each n_rule level, then average across levels
+                level_means: list[float] = []
+                for n_rule in n_rules:
+                    vals = buckets.get((ds, model, rule, n_rule), [])
+                    if vals:
+                        level_means.append(mean(vals))
+                result[ds][model][rule] = mean(level_means) if level_means else None
+    return result
+
+
+def _write_sheet(wb: openpyxl.Workbook, title: str, ds_data: dict[str, dict[str, float | None]], first: bool) -> None:
+    ws = wb.active if first else wb.create_sheet(title=title)
+    if first:
+        ws.title = title
+
+    hdr_fill = PatternFill("solid", fgColor="4472C4")
+    hdr_font = Font(bold=True, color="FFFFFF")
+    center = Alignment(horizontal="center")
+    right = Alignment(horizontal="right")
+
+    models = sorted(ds_data.keys())
+
+    ws.cell(row=1, column=1, value="rule").font = hdr_font
+    ws.cell(row=1, column=1).fill = hdr_fill
+    ws.cell(row=1, column=1).alignment = center
+    for col, model in enumerate(models, 2):
+        c = ws.cell(row=1, column=col, value=model)
+        c.font = hdr_font
+        c.fill = hdr_fill
+        c.alignment = center
+
+    for row, rule in enumerate(ALL_RULES, 2):
+        ws.cell(row=row, column=1, value=rule).font = Font(bold=True)
+        for col, model in enumerate(models, 2):
+            val = ds_data[model].get(rule)
+            c = ws.cell(row=row, column=col, value=round(val, 4) if val is not None else "")
+            c.alignment = right
+            if val is not None:
+                c.number_format = "0.0000"
+
+    ws.column_dimensions["A"].width = 10
+    for col in range(2, len(models) + 2):
+        ws.column_dimensions[get_column_letter(col)].width = 26
+    ws.freeze_panes = "B2"
+
+
+def write_excel(data: dict[str, dict[str, dict[str, float | None]]], out_path: Path) -> None:
+    wb = openpyxl.Workbook()
+    for i, ds in enumerate(DATASET_TYPES):
+        _write_sheet(wb, ds, data[ds], first=(i == 0))
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(out_path)
+    print(f"Written -> {_relpath(out_path)}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", default="strict", choices=["strict", "flex"])
+    parser.add_argument("--report-root", type=Path, default=DEFAULT_REPORT_ROOT)
+    parser.add_argument("--overwrite", action="store_true")
+    args = parser.parse_args()
+
+    csv_path = args.report_root.resolve() / args.mode / f"scores-{args.mode}.csv"
+    out_path = args.report_root.resolve() / args.mode / f"rule_accuracy_analysis-{args.mode}.xlsx"
+
+    if not csv_path.exists():
+        print(f"Not found: {_relpath(csv_path)}")
+        return 1
+    if out_path.exists() and not args.overwrite:
+        print(f"Output already exists (use --overwrite): {_relpath(out_path)}")
+        return 1
+
+    records = load_scores(csv_path)
+    data = compute(records)
+
+    for ds in DATASET_TYPES:
+        print(f"[{ds}]")
+        for rule in ALL_RULES:
+            vals = {m: data[ds][m].get(rule) for m in sorted(data[ds])}
+            row_str = "  ".join(f"{m}={v:.4f}" if v is not None else f"{m}=N/A" for m, v in vals.items())
+            print(f"  {rule}: {row_str}")
+
+    write_excel(data, out_path)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

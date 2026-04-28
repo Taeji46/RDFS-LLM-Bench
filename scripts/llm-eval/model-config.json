@@ -1,0 +1,26 @@
+{
+  "gpt-4o-2024-08-06": {
+    "runner": "openai-batch",
+    "api_model": "gpt-4o-2024-08-06"
+  },
+  "gpt-4o-mini-2024-07-18": {
+    "runner": "openai-batch",
+    "api_model": "gpt-4o-mini-2024-07-18"
+  },
+  "gpt-oss-20b": {
+    "runner": "sequential-openai-compat",
+    "api_model": "openai/gpt-oss-20b"
+  },
+  "gpt-oss-120b": {
+    "runner": "sequential-openai-compat",
+    "api_model": "openai/gpt-oss-120b"
+  },
+  "llama3.1-70b": {
+    "runner": "sequential-openai-compat",
+    "api_model": "meta-llama/Meta-Llama-3.1-70B-Instruct"
+  },
+  "llama3.1-8b": {
+    "runner": "sequential-ollama",
+    "api_model": "llama3.1:8b"
+  }
+}

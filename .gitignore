@@ -5,3 +5,21 @@ batch_statuses.json
 upload_mapping.json
 legacy/
 ISWC2026_resource_track_improvement_steps.txt
+CLAUDE.md
+experiment_tasks.md
+experiment_tasks2.md
+license_tasks.md
+
+# Development environment
+.claude/
+pyrightconfig.json
+
+# Datasets and eval data (published via Zenodo)
+data/lod-samples/
+data/datasets/
+data/llm-eval/
+
+# Python cache artifacts
+__pycache__/
+*.pyc
+*.pyo
