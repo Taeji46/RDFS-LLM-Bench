@@ -14,6 +14,9 @@ license_tasks.md
 .claude/
 pyrightconfig.json
 
+# Zenodo upload artifacts
+zenodo-upload/
+
 # Datasets and eval data (published via Zenodo)
 data/lod-samples/
 data/datasets/
