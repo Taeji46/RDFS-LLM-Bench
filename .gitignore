@@ -8,7 +8,11 @@ ISWC2026_resource_track_improvement_steps.txt
 CLAUDE.md
 experiment_tasks.md
 experiment_tasks2.md
+experiment_tasks3.md
 license_tasks.md
+rdfs5_chains_406.json
+analysis_lov_licenses.md
+analysis_rdfs2_overgeneralization.md
 
 # Development environment
 .claude/
