@@ -38,7 +38,7 @@ Combined rule configurations (13): rdfs2\_3, rdfs2\_7, rdfs2\_9, rdfs3\_7, rdfs3
 
 | Family | Source | Description |
 |---|---|---|
-| `rk` | LOD samples | Raw real-world triples from DBpedia/Wikidata/LOV |
+| `rk` | LOD samples | Raw real-world triples from DBpedia/Wikidata/schema.org |
 | `ls` | LOD samples | Local shuffle: terms swapped/deranged within each entry |
 | `gs` | LOD samples | Global shuffle: term slots filled with globally shuffled LOD values |
 | `gsc` | LOD samples | Like `gs` but with type-consistent case (PascalCase for classes, camelCase for properties) |
@@ -332,6 +332,7 @@ If `--queue` is omitted, available queue names are listed. All three runners sha
 | `--yes` | prompt | Skip confirmation prompt |
 | `--dry-run` | — | Show what would run without calling the API |
 | `--verbose` | — | Print skipped file paths |
+| `--fallback-root` | skip | (sequential only) Save to response root directly when filename cannot be parsed |
 
 Output: `data/llm-eval/responses/sequential/{slug}/{operation_type}/{dataset_type}/{n-rule}/response__*.jsonl`
 
@@ -558,7 +559,7 @@ The datasets are derived from the following sources:
 
 - [DBpedia](https://dbpedia.org) — CC BY-SA 3.0
 - [Wikidata](https://www.wikidata.org) — CC0 1.0
-- [Linked Open Vocabularies](https://lov.linkeddata.es) — CC BY 4.0
+- [schema.org](https://schema.org) — CC BY-SA 4.0
 
 Data was collected via SPARQL queries against the public endpoints of the above sources.
 

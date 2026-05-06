@@ -1,13 +1,17 @@
 """
 Common logic for fetch-samples scripts.
 
-DBpedia / LOV rules:
+DBpedia rules:
     Use `get_fetch_args()`, `run_sparql()`, `parse_bindings()`,
     `balanced_sample()`, and `save_benchmark_sample()`.
 
 Wikidata + DBpedia multi-step rules (rdfs7, rdfs2_7, rdfs3_7, ...):
     Use `get_fetch_args()`, `run_sparql()`, `fetch_wdt_equivalent_dbp_properties()`,
     `balanced_sample()`, and `save_benchmark_sample()`.
+
+Wikidata + schema.org rule (rdfs5):
+    Use `fetch_schema_subprop_pairs()` and `fetch_wdt_schema_equivalences()`
+    in addition to the Wikidata SPARQL helpers.
 """
 
 import argparse
@@ -24,7 +28,8 @@ from SPARQLWrapper import JSON, SPARQLWrapper
 
 DBP_ENDPOINT = "https://dbpedia.org/sparql"
 WDT_ENDPOINT = "https://query.wikidata.org/sparql"
-LOV_ENDPOINT = "https://lov.linkeddata.es/dataset/lov/sparql"
+SCHEMA_NS = "https://schema.org/"
+SCHEMA_NT_URL = "https://schema.org/version/latest/schemaorg-current-https.nt"
 DBP_QUERY_TIMEOUT_MS = 120000
 HTTP_SOCKET_TIMEOUT_SEC = 130
 
@@ -38,8 +43,19 @@ def query_hash(query: str) -> str:
     """Compute 8-char MD5 hash of a SPARQL query string for file identification."""
     return hashlib.md5(query.strip().encode("utf-8")).hexdigest()[:8]
 
-# scripts/fetch/_base.py から2階層上がプロジェクトルート
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# scripts/fetch-samples/shared/_base.py から3階層上がプロジェクトルート
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+# Re-export `to_property_name` from build-dataset/shared/_base.py so fetch scripts can use it
+# without duplicating the camelCase logic.
+import importlib.util as _importlib_util  # noqa: E402
+
+_BUILD_BASE_PATH = os.path.join(PROJECT_ROOT, "scripts", "build-dataset", "shared", "_base.py")
+_spec = _importlib_util.spec_from_file_location("_build_dataset_base", _BUILD_BASE_PATH)
+assert _spec is not None and _spec.loader is not None, f"Cannot load {_BUILD_BASE_PATH}"
+_build_base = _importlib_util.module_from_spec(_spec)
+_spec.loader.exec_module(_build_base)
+to_property_name = _build_base.to_property_name
 
 
 def get_fetch_args(rule: str, source: str, default_output_dir: str) -> argparse.Namespace:
@@ -83,7 +99,6 @@ def parse_bindings(
         bindings:   Raw SPARQL result bindings.
         fields:     Variable names to extract (e.g. ["a", "b", "i", "x"]).
         row_filter: Optional function (row: dict) -> bool for custom filtering.
-                    Used for LOV rules that require property name validation.
 
     Returns:
         List of dicts with extracted field values.
@@ -175,6 +190,69 @@ def fetch_wdt_equivalent_dbp_properties(property_uri: str) -> list[str]:
             else:
                 print(f"  All 10 attempts failed for {property_uri}: {e}")
     return []
+
+
+def fetch_wdt_schema_equivalences() -> tuple[dict[str, tuple[str, str]], dict[str, str]]:
+    """
+    Bulk-fetch all Wikidata properties that have a schema.org equivalent via P1628.
+
+    Returns:
+        (schema_local_to_wdt, wdt_uri_to_schema_local):
+            schema_local_to_wdt maps schema.org local names to (wdt_uri, wdt_label).
+            wdt_uri_to_schema_local maps Wikidata URIs back to schema.org local names.
+    """
+    query = """
+        SELECT ?prop ?propLabel ?schemaProp WHERE {
+            ?prop wdt:P1628 ?schemaProp.
+            FILTER(STRSTARTS(STR(?schemaProp), "https://schema.org/"))
+            SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+        }
+    """
+    bindings = run_sparql(WDT_ENDPOINT, query)
+    schema_to_wdt: dict[str, tuple[str, str]] = {}
+    wdt_to_schema: dict[str, str] = {}
+    for b in bindings:
+        wdt_uri = b.get("prop", {}).get("value", "")
+        wdt_lbl = b.get("propLabel", {}).get("value", "")
+        schema_uri = b.get("schemaProp", {}).get("value", "")
+        schema_local = schema_uri.rstrip("/").rsplit("/", 1)[-1]
+        if wdt_uri and schema_local:
+            schema_to_wdt[schema_local] = (wdt_uri, wdt_lbl)
+            wdt_to_schema[wdt_uri] = schema_local
+    return schema_to_wdt, wdt_to_schema
+
+
+def fetch_schema_subprop_pairs() -> list[tuple[str, str]]:
+    """
+    Download schema.org N-Triples and extract rdfs:subPropertyOf pairs
+    where both subject and object are in the schema.org namespace.
+
+    Returns:
+        List of (child_local, parent_local) tuples (URI local names).
+    """
+    import re
+    import urllib.request
+
+    req = urllib.request.Request(SCHEMA_NT_URL, headers={"User-Agent": "RDFS-LLM-Bench/1.0"})
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        content = resp.read().decode("utf-8")
+    pattern = re.compile(
+        r"<([^>]+)>\s+<http://www\.w3\.org/2000/01/rdf-schema#subPropertyOf>\s+<([^>]+)>"
+    )
+    pairs: list[tuple[str, str]] = []
+    for line in content.splitlines():
+        if "subPropertyOf" not in line:
+            continue
+        m = pattern.match(line)
+        if not m:
+            continue
+        s_uri, o_uri = m.group(1), m.group(2)
+        if s_uri.startswith(SCHEMA_NS) and o_uri.startswith(SCHEMA_NS):
+            child = s_uri.rstrip("/").rsplit("/", 1)[-1]
+            parent = o_uri.rstrip("/").rsplit("/", 1)[-1]
+            if child and parent and child != parent:
+                pairs.append((child, parent))
+    return pairs
 
 
 

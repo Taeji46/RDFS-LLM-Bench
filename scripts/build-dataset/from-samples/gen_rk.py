@@ -3,7 +3,7 @@ Generate RK (Real-world Knowledge) dataset from benchmark samples.
 
 For every rule in ALL_RULES, loads the benchmark sample and converts each
 entry to the standardized { premise_knowledge, expected_output } format
-using real DBpedia / Wikidata / LOV term names.
+using real DBpedia / Wikidata / schema.org term names.
 """
 
 import os

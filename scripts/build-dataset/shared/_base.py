@@ -11,6 +11,7 @@ Provides:
 import json
 import os
 import re
+import unicodedata
 from datetime import date as _date
 
 # ──────────────────────────────────────────────────────────────────
@@ -41,7 +42,18 @@ def get_term(uri: str) -> str:
     return uri.split("/")[-1]
 
 
+def _ascii_fold(s: str) -> str:
+    """Transliterate accented characters to ASCII via NFKD decomposition.
+    e.g. 'café' → 'cafe', 'Cristián' → 'Cristian', 'Köln' → 'Koln'.
+    Characters that don't decompose (e.g. 'Ø', 'æ') are left unchanged
+    and will still be dropped by the regex in _split_words.
+    """
+    nfkd = unicodedata.normalize("NFKD", s)
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
 def _split_words(s: str) -> list[str]:
+    s = _ascii_fold(s)
     parts = re.split(r"[ _]+", s)
     words: list[str] = []
     for part in parts:
@@ -115,6 +127,21 @@ def _t(entry: dict, field: str) -> str:
 def _p(entry: dict, field: str) -> str:
     """to_property_name() on a label field."""
     return to_property_name(entry[field])
+
+
+_WDT_PREFIX = "http://www.wikidata.org/entity/"
+
+
+def _pn(entry: dict, field: str) -> str:
+    """Extract a camelCase property name, choosing the source by URI type.
+
+    - Wikidata URI (opaque P-ID): use entry[f"{field}_label"] → camelCase.
+    - Other URI (schema.org / DBpedia ontology): use the URI local name as-is.
+    """
+    uri = entry.get(field, "")
+    if uri.startswith(_WDT_PREFIX):
+        return to_property_name(entry[f"{field}_label"])
+    return get_term(uri)
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -221,7 +248,7 @@ RULE_CONFIGS: dict[str, dict] = {
     "rdfs5": {
         "rule_str": "if <i, rdfs:subPropertyOf, j> and <j, rdfs:subPropertyOf, k> then <i, rdfs:subPropertyOf, k>",
         "build_terms": lambda e: {
-            "i": _t(e, "i"), "j": _t(e, "j"), "k": _t(e, "k"),
+            "i": _pn(e, "i"), "j": _pn(e, "j"), "k": _pn(e, "k"),
         },
         "build_premise": lambda t: (
             f"<{t['i']}, rdfs:subPropertyOf, {t['j']}>, <{t['j']}, rdfs:subPropertyOf, {t['k']}>"

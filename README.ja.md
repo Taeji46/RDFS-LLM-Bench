@@ -38,7 +38,7 @@ RDFS-LLM-Bench は、LLM が RDFS ベースの推論をどの程度実行でき�
 
 | 系列 | ソース | 説明 |
 |---|---|---|
-| `rk` | LOD サンプル | DBpedia/Wikidata/LOV の実世界トリプルをそのまま使用 |
+| `rk` | LOD サンプル | DBpedia/Wikidata/schema.org の実世界トリプルをそのまま使用 |
 | `ls` | LOD サンプル | ローカルシャッフル: エントリ内でタームをスワップ・デレンジ |
 | `gs` | LOD サンプル | グローバルシャッフル: タームスロットにグローバルシャッフルした LOD 値を割り当て |
 | `gsc` | LOD サンプル | `gs` と同様だが型一貫ケース付き（クラス: PascalCase, プロパティ: camelCase）|
@@ -332,6 +332,7 @@ python scripts/llm-eval/run/run_sequential_ollama.py --queue <queue-name> --olla
 | `--yes` | プロンプト表示 | 確認プロンプトをスキップ |
 | `--dry-run` | — | API 呼び出しなしで実行内容を確認 |
 | `--verbose` | — | スキップ時もパスを出力 |
+| `--fallback-root` | スキップ | （sequential のみ）ファイル名が解析できない場合に response ルート直下に保存 |
 
 出力先: `data/llm-eval/responses/sequential/{slug}/{operation_type}/{dataset_type}/{n-rule}/response__*.jsonl`
 
@@ -558,7 +559,7 @@ SPARQL エンドポイントの負荷や一時的不安定が原因です。時�
 
 - [DBpedia](https://dbpedia.org) — CC BY-SA 3.0
 - [Wikidata](https://www.wikidata.org) — CC0 1.0
-- [Linked Open Vocabularies](https://lov.linkeddata.es) — CC BY 4.0
+- [schema.org](https://schema.org) — CC BY-SA 4.0
 
 データは各ソースの公開 SPARQL エンドポイントへのクエリにより収集しました。
 
