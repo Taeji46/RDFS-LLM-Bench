@@ -105,19 +105,25 @@ def run_file(
     file_idx: int,
     total_files: int,
     global_stats: dict,
+    fallback_root: bool = False,
 ) -> dict:
     stem = req_path.stem
     meta = _parse_seq_stem(stem)
     if meta is None:
-        return {"status": "skipped_parse_error", "path": str(req_path)}
-
-    slug = meta["slug"]
-    op = meta["operation_type"]
-    dtype = meta["dataset_type"]
-    rule_id = meta["rule_id"]
-
-    response_dir = _response_dir(response_root, meta)
-    stem_prefix = _stem_prefix(stem)
+        if not fallback_root:
+            print(f"SKIP (unparseable filename, use --fallback-root to save to response root): {req_path.name}")
+            return {"status": "skipped_parse_error", "path": str(req_path)}
+        slug = stem[len("seq__"):].split("__")[0] if stem.startswith("seq__") else stem
+        op = dtype = rule_id = "unknown"
+        response_dir = response_root
+        stem_prefix = _stem_prefix(stem)
+    else:
+        slug = meta["slug"]
+        op = meta["operation_type"]
+        dtype = meta["dataset_type"]
+        rule_id = meta["rule_id"]
+        response_dir = _response_dir(response_root, meta)
+        stem_prefix = _stem_prefix(stem)
 
     existing = _has_existing_response(response_dir, stem_prefix)
     if existing and not overwrite:
@@ -218,6 +224,8 @@ def main() -> int:
     parser.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
     parser.add_argument("--dry-run", action="store_true", help="Show what would run without calling the API")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--fallback-root", action="store_true",
+                        help="Save to response root directly when filename cannot be parsed (instead of skipping)")
     args = parser.parse_args()
 
     queue_base = args.queue_base.resolve()
@@ -250,12 +258,16 @@ def main() -> int:
         print(f"No seq__*.jsonl files found in queue: {_relpath(queue_dir)}")
         return 1
 
+    fallback_root: bool = args.fallback_root
+
     # filter to models handled by this runner
     filtered: list[Path] = []
     skipped_runner: list[Path] = []
     for p in queue_files:
         meta = _parse_seq_stem(p.stem)
         if meta is None:
+            if fallback_root:
+                filtered.append(p)
             continue
         if meta["slug"] not in model_config:
             skipped_runner.append(p)
@@ -274,7 +286,8 @@ def main() -> int:
 
     already_done = [
         p for p in filtered
-        if _has_existing_response(_response_dir(response_root, _parse_seq_stem(p.stem)), _stem_prefix(p.stem))  # type: ignore[arg-type]
+        if _parse_seq_stem(p.stem) is not None and
+        _has_existing_response(_response_dir(response_root, _parse_seq_stem(p.stem)), _stem_prefix(p.stem))  # type: ignore[arg-type]
     ]
     new_files = [p for p in filtered if p not in already_done]
 
@@ -329,6 +342,7 @@ def main() -> int:
             file_idx=file_idx,
             total_files=len(run_targets),
             global_stats=global_stats,
+            fallback_root=args.fallback_root,
         )
         records.append(record)
 
