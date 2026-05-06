@@ -18,10 +18,9 @@ Rule selection ability:
 
 Robustness:
   VR  (Vocabulary Robustness)   : mean min(1, GSC/NSC) across ESRA/EMRA/SRA × n_rule
-  NCR (Naming Convention Rob.)  : mean min(1, GS/GSC) across ESRA/EMRA/SRA × n_rule
+  TR  (Token / Naming Robustness): mean min(1, GS/GSC) across ESRA/EMRA/SRA × n_rule
 
 Pre-training knowledge:
-  RDK (RDFS rule Definition Know.): f1_triple on NS, ESRA-name × 1-rule
   RDI (Rule Definition Independence): mean min(1, name/full) on NS across all 6 combos
     ESRA:1→ESRA-name/ESRA-full, EMRA:2,3→EMRA-name/EMRA-full, SRA:1,2,3→SRA-name/SRA-full
     High RDI ≈ model does not need the rule definition text (pre-training knowledge)
@@ -116,7 +115,7 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
         if key in COMBO_KEYS:
             combo_rules[key].add(rec["rule_id"])
 
-    # Full-variant operation type per family (RI/SI/RRS/SRS/VR/NCR use full only)
+    # Full-variant operation type per family (RI/SI/RRS/SRS/VR/TR use full only)
     FULL_OP = {"ESRA": "ESRA-full", "EMRA": "EMRA-full", "SRA": "SRA-full"}
 
     def _combo_mean_f1(ds: str, metric: str = "triple") -> float | None:
@@ -178,14 +177,8 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
     # VR: min(1, GSC/NSC)
     vr = _robustness_mean("gsc", "nsc")
 
-    # NCR: min(1, GS/GSC)
-    ncr = _robustness_mean("gs", "gsc")
-
-    # RDK: ESRA-name × 1-rule × NS (name variant only)
-    rdk_rules = combo_rules.get(("ESRA", 1), set())
-    rdk_vals = [_f1_triple("ESRA-name", "ns", r) for r in rdk_rules]
-    rdk_vals = [v for v in rdk_vals if v is not None]
-    rdk = mean(rdk_vals) if rdk_vals else None
+    # TR: min(1, GS/GSC)
+    tr = _robustness_mean("gs", "gsc")
 
     # RDI: mean min(1, name/full) on NS across all 6 (family × n_rule) combos
     # ESRA:1 → ESRA-name/ESRA-full, EMRA:2,3 → EMRA-name/EMRA-full, SRA:1,2,3 → SRA-name/SRA-full
@@ -216,13 +209,12 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
         "RRS": rrs,
         "SRS": srs,
         "VR":  vr,
-        "NCR": ncr,
-        "RDK": rdk,
+        "TR":  tr,
         "RDI": rdi,
     }
 
 
-FIELDNAMES = ["model", "RI", "SI", "RRS", "SRS", "VR", "NCR", "RDK", "RDI"]
+FIELDNAMES = ["model", "RI", "SI", "RRS", "SRS", "VR", "TR", "RDI"]
 
 
 def main() -> int:

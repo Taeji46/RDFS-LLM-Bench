@@ -8,7 +8,7 @@ Cell values:
 
 Composite-metric-relevant cells are highlighted with a hatched fill:
   - ESRA-full, EMRA-full, SRA-full: all dataset columns where task exists
-  - ESRA-name × 1-rule: ns column only (for RDK metric)
+  - ESRA-name × 1-rule: ns column only
 
 Reads tasks from:
   data/llm-eval/tasks/zeroshot/{op}/{dataset}/{n-rule}/task__*.json
