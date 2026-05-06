@@ -16,6 +16,6 @@ This dataset is derived from the following sources:
 
 - DBpedia (https://dbpedia.org) — licensed under CC BY-SA 3.0
 - Wikidata (https://www.wikidata.org) — licensed under CC0 1.0
-- Linked Open Vocabularies (https://lov.linkeddata.es) — licensed under CC BY 4.0
+- schema.org (https://schema.org) — licensed under CC BY-SA 4.0
 
 Data was collected via SPARQL queries against the public endpoints of the above sources.
