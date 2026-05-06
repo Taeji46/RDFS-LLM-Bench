@@ -9,26 +9,26 @@ Writes:
 Composite metrics (each in [0, 1], higher is better):
 
 Inference ability:
-  RI  (Real-world Inference)    : f1_triple on RK, across ESRA/EMRA/SRA × n_rule
-  SI  (Structural Inference)    : f1_triple on NS, across ESRA/EMRA/SRA × n_rule
+  RI  (Real-world Inference)    : f1_triple on RK, across NRP/ARP × n_rule
+  SI  (Structural Inference)    : f1_triple on NS, across NRP/ARP × n_rule
 
 Rule selection ability:
-  RRS (Real-world Rule Selection): f1_rule on RK, across SRA-full/SRA-name × n_rule
-  SRS (Structural Rule Selection): f1_rule on NS, across SRA-full/SRA-name × n_rule
+  RRS (Real-world Rule Selection): f1_rule on RK, across ARP-full/ARP-name × n_rule
+  SRS (Structural Rule Selection): f1_rule on NS, across ARP-full/ARP-name × n_rule
 
 Robustness:
-  VR  (Vocabulary Robustness)   : mean min(1, GSC/NSC) across ESRA/EMRA/SRA × n_rule
-  TR  (Token / Naming Robustness): mean min(1, GS/GSC) across ESRA/EMRA/SRA × n_rule
+  VR  (Vocabulary Robustness)   : mean min(1, GSC/NSC) across NRP/ARP × n_rule
+  TR  (Token / Naming Robustness): mean min(1, GS/GSC) across NRP/ARP × n_rule
 
 Pre-training knowledge:
   RDI (Rule Definition Independence): mean min(1, name/full) on NS across all 6 combos
-    ESRA:1→ESRA-name/ESRA-full, EMRA:2,3→EMRA-name/EMRA-full, SRA:1,2,3→SRA-name/SRA-full
+    NRP:1,2,3→NRP-name/NRP-full, ARP:1,2,3→ARP-name/ARP-full
     High RDI ≈ model does not need the rule definition text (pre-training knowledge)
     Low RDI  ≈ model relies on the provided rule definition
 
 Averaging procedure:
   For each of 6 (family × n_rule) combinations:
-    (ESRA:1-rule, EMRA:2-rule, EMRA:3-rule, SRA:1-rule, SRA:2-rule, SRA:3-rule)
+    (NRP:1-rule, NRP:2-rule, NRP:3-rule, ARP:1-rule, ARP:2-rule, ARP:3-rule)
   compute the mean F1 over all applicable rule_info variants and rule_ids,
   then take the mean of these 6 values.
 """
@@ -48,16 +48,16 @@ DEFAULT_REPORT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "reports"
 
 # Valid (operation_family, n_rule) combinations for averaging
 COMBO_KEYS = [
-    ("ESRA", 1),
-    ("EMRA", 2),
-    ("EMRA", 3),
-    ("SRA",  1),
-    ("SRA",  2),
-    ("SRA",  3),
+    ("NRP", 1),
+    ("NRP", 2),
+    ("NRP", 3),
+    ("ARP", 1),
+    ("ARP", 2),
+    ("ARP", 3),
 ]
 
-# For rule selection metrics, only SRA-full and SRA-name have f1_rule
-RULE_EVAL_OP_TYPES = {"SRA-full", "SRA-name"}
+# For rule selection metrics, only ARP-full and ARP-name have f1_rule
+RULE_EVAL_OP_TYPES = {"ARP-full", "ARP-name"}
 
 
 def _relpath(path: Path) -> str:
@@ -116,7 +116,7 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
             combo_rules[key].add(rec["rule_id"])
 
     # Full-variant operation type per family (RI/SI/RRS/SRS/VR/TR use full only)
-    FULL_OP = {"ESRA": "ESRA-full", "EMRA": "EMRA-full", "SRA": "SRA-full"}
+    FULL_OP = {"NRP": "NRP-full", "ARP": "ARP-full"}
 
     def _combo_mean_f1(ds: str, metric: str = "triple") -> float | None:
         """Mean over applicable (family × n_rule) combos using full-variant only.
@@ -181,8 +181,8 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
     tr = _robustness_mean("gs", "gsc")
 
     # RDI: mean min(1, name/full) on NS across all 6 (family × n_rule) combos
-    # ESRA:1 → ESRA-name/ESRA-full, EMRA:2,3 → EMRA-name/EMRA-full, SRA:1,2,3 → SRA-name/SRA-full
-    NAME_OP = {"ESRA": "ESRA-name", "EMRA": "EMRA-name", "SRA": "SRA-name"}
+    # NRP:1,2,3 → NRP-name/NRP-full, ARP:1,2,3 → ARP-name/ARP-full
+    NAME_OP = {"NRP": "NRP-name", "ARP": "ARP-name"}
     rdi_combo_vals: list[float] = []
     rdi_ok = True
     for (fam, n_rule) in COMBO_KEYS:

@@ -5,9 +5,8 @@ Averages f1_triple per (dataset_type, model, operation_family, n_rule)
 across all rule_ids.
 
 Valid (operation_family, n_rule) combinations:
-  ESRA: 1
-  EMRA: 2, 3
-  SRA:  1, 2, 3
+  NRP: 1, 2, 3
+  ARP: 1, 2, 3
 
 One sheet per dataset type (rk / ls / gs / gsc / ns / nsc / rva).
 Each sheet: rows = (operation_family, n_rule), columns = models.
@@ -32,11 +31,10 @@ THIS_FILE = Path(__file__).resolve()
 PROJECT_ROOT = THIS_FILE.parents[3]
 DEFAULT_REPORT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "reports"
 
-FAMILIES = ["ESRA", "EMRA", "SRA"]
+FAMILIES = ["NRP", "ARP"]
 VALID_COMBOS = {
-    "ESRA": [1],
-    "EMRA": [2, 3],
-    "SRA":  [1, 2, 3],
+    "NRP": [1, 2, 3],
+    "ARP": [1, 2, 3],
 }
 DATASET_TYPES = ["rk", "ls", "gs", "gsc", "ns", "nsc", "rva"]
 

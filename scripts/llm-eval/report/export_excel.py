@@ -6,7 +6,7 @@ Reads:
 Writes one .xlsx per model:
   data/llm-eval/reports/scores__{model}.xlsx
 
-Each workbook has one sheet per operation_type (e.g. ESRA-full, EMRA-full, ...).
+Each workbook has one sheet per operation_type (e.g. NRP-full, ARP-full, ...).
 Each sheet is a pivot table:
   rows    = rule_id  (sorted by n_rule, then rule_id)
   columns = dataset_type
@@ -27,9 +27,8 @@ DEFAULT_REPORT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "reports"
 
 # Canonical display order for operation types
 OPERATION_TYPE_ORDER = [
-    "ESRA-full", "ESRA-name", "ESRA-def",
-    "EMRA-full", "EMRA-name", "EMRA-def",
-    "SRA-full",  "SRA-name",  "SRA-def",
+    "NRP-full", "NRP-name", "NRP-def",
+    "ARP-full", "ARP-name", "ARP-def",
 ]
 
 # Canonical display order for dataset types
@@ -87,13 +86,13 @@ def _write_workbook(model: str, records: list[dict], report_root: Path, overwrit
         if op not in op_types:
             op_types.append(op)
 
-    SRA_OPS = {"SRA-full", "SRA-name", "SRA-def"}
+    ARP_OPS = {"ARP-full", "ARP-name", "ARP-def"}
 
     # Build list of sheets: (sheet_title, op_type, metric_col)
     sheets: list[tuple[str, str, str]] = []
     for op_type in op_types:
         sheets.append((op_type, op_type, "f1_triple"))
-        if op_type in SRA_OPS:
+        if op_type in ARP_OPS:
             sheets.append((f"{op_type}-rule", op_type, "f1_rule"))
 
     for sheet_title, op_type, metric_col in sheets:

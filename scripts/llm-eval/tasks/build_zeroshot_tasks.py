@@ -28,13 +28,12 @@ DEFAULT_DATASET_ROOT = PROJECT_ROOT / "data" / "datasets"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "tasks" / "zeroshot"
 
 # Valid operation types per rule count.
-# ESRA: single-rule application — full/name only meaningful for 1-rule (standard rule names)
-# EMRA: multi-rule application  — requires 2+ rules
-# SRA:  selective application   — always valid
+# NRP: necessary rule presentation — all n valid
+# ARP: all-rule presentation      — always valid
 _VALID_OPERATION_TYPES: dict[int, set[str]] = {
-    1: {"ESRA-full", "ESRA-name", "ESRA-def", "SRA-full", "SRA-name", "SRA-def"},
-    2: {"ESRA-def", "EMRA-full", "EMRA-name", "EMRA-def", "SRA-full", "SRA-name", "SRA-def"},
-    3: {"ESRA-def", "EMRA-full", "EMRA-name", "EMRA-def", "SRA-full", "SRA-name", "SRA-def"},
+    1: {"NRP-full", "NRP-name", "NRP-def", "ARP-full", "ARP-name", "ARP-def"},
+    2: {"NRP-full", "NRP-name", "NRP-def", "ARP-full", "ARP-name", "ARP-def"},
+    3: {"NRP-full", "NRP-name", "NRP-def", "ARP-full", "ARP-name", "ARP-def"},
 }
 
 
@@ -187,7 +186,7 @@ def build_zeroshot_tasks(
             continue
 
         tasks = _build_tasks(entries, operation_type=operation_type, rule_id=rule_id, entry_limit=entry_limit)
-        template_uid = get_template_hash(operation_type)
+        template_uid = get_template_hash(operation_type, rule_id)
 
         out_dir = output_root / operation_type / dataset_type / rule_dir
         if source_uid is not None:
@@ -255,7 +254,7 @@ def main() -> int:
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--dataset-types", type=str, default="", help="Comma-separated dataset types (e.g. rk,ls,gs)")
     parser.add_argument("--rules", type=str, default="", help="Comma-separated rule ids (e.g. rdfs2,rdfs2_3)")
-    parser.add_argument("--operation-types", type=str, default=",".join(OPERATION_TYPES), help="Comma-separated inference operation types (e.g. ESRA-full,EMRA-name)")
+    parser.add_argument("--operation-types", type=str, default=",".join(OPERATION_TYPES), help="Comma-separated inference operation types (e.g. NRP-full,NRP-name)")
     parser.add_argument("--max-files", type=int, default=0, help="Debug option: process only first N dataset files")
     parser.add_argument("--entry-limit", type=int, default=0, help="Debug option: keep only first N entries per dataset")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing zero-shot task files")

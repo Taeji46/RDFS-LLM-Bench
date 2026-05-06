@@ -35,7 +35,7 @@ from shared.eval_utils import (
     extract_used_rules,
     compute_set_metrics,
     compute_flex_metrics,
-    SRA_RULE_EVAL_OPS,
+    ARP_RULE_EVAL_OPS,
 )
 
 DEFAULT_RESPONSE_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "responses"
@@ -89,7 +89,7 @@ def _task_id(entry: dict) -> str:
 def _build_task_index(task_root: Path) -> dict[str, Path]:
     """Build index: stem_without_prefix -> task path.
 
-    Key is the part after "task__", e.g. "EMRA-full__gs__rdfs2_3__n400__f-xxx__b-yyy"
+    Key is the part after "task__", e.g. "NRP-full__gs__rdfs2_3__n400__f-xxx__b-yyy"
     """
     index: dict[str, Path] = {}
     for p in task_root.rglob("task__*.json"):
@@ -174,7 +174,7 @@ def evaluate_one(
     metadata = task_payload.get("metadata", {})
     operation_type: str = str(metadata.get("operation_type", ""))
     rules: list[str] = metadata.get("rules", [])
-    do_rule_eval = operation_type in SRA_RULE_EVAL_OPS
+    do_rule_eval = operation_type in ARP_RULE_EVAL_OPS
 
     # Load response entries
     entries: list[dict] = []

@@ -15,7 +15,7 @@ Japanese version: [README.ja.md](README.ja.md)
 RDFS-LLM-Bench systematically evaluates how well LLMs can perform RDFS-based reasoning.
 The benchmark covers 6 core RDFS rules (rdfs2, rdfs3, rdfs5, rdfs7, rdfs9, rdfs11) and
 13 combined rule sets (19 rule configurations in total), with 7 dataset families and
-9 inference operation types.
+6 inference operation types.
 
 ---
 
@@ -55,9 +55,8 @@ how much rule information is given to the model.
 
 | Operation Type | Abbrev. | Description |
 |---|---|---|
-| Explicit Single-Rule Application | ESRA | One rule is given; the model applies it to the premise |
-| Explicit Multi-Rule Application | EMRA | Multiple rules are given; the model combines them |
-| Selective Rule Application | SRA | All rules are given; the model selects and combines as needed |
+| Necessary Rule Presentation | NRP | The rule(s) needed for the inference task are given; the model applies them to the premise |
+| All-Rule Presentation | ARP | All RDFS rules are given; the model selects and applies as needed |
 
 Each operation type has three **rule info** variants:
 
@@ -67,26 +66,23 @@ Each operation type has three **rule info** variants:
 | Name only | `-name` | Rule name only |
 | Definition only | `-def` | Rule definition only |
 
-This gives 9 inference operation types in total:
-`ESRA-full`, `ESRA-name`, `ESRA-def`, `EMRA-full`, `EMRA-name`, `EMRA-def`, `SRA-full`, `SRA-name`, `SRA-def`
+This gives 6 inference operation types in total:
+`NRP-full`, `NRP-name`, `NRP-def`, `ARP-full`, `ARP-name`, `ARP-def`
 
 ### Valid combinations by rule count
 
-Not all operation types apply to all rule counts.
+All operation types apply to all rule counts.
 
 | | 1-rule | 2-rule | 3-rule |
 |---|---|---|---|
-| ESRA-full | ✓ | ✗ | ✗ |
-| ESRA-name | ✓ | ✗ | ✗ |
-| ESRA-def  | ✓ | ✓ | ✓ |
-| EMRA-full | ✗ | ✓ | ✓ |
-| EMRA-name | ✗ | ✓ | ✓ |
-| EMRA-def  | ✗ | ✓ | ✓ |
-| SRA-full  | ✓ | ✓ | ✓ |
-| SRA-name  | ✓ | ✓ | ✓ |
-| SRA-def   | ✓ | ✓ | ✓ |
+| NRP-full | ✓ | ✓ | ✓ |
+| NRP-name | ✓ | ✓ | ✓ |
+| NRP-def  | ✓ | ✓ | ✓ |
+| ARP-full | ✓ | ✓ | ✓ |
+| ARP-name | ✓ | ✓ | ✓ |
+| ARP-def  | ✓ | ✓ | ✓ |
 
-ESRA-full and ESRA-name are not generated for 2/3-rule datasets because combined rules (e.g. `rdfs2_3`) do not have standard RDFS rule names. EMRA variants are not generated for 1-rule datasets because multi-rule application requires at least two rules.
+NRP prompts adapt their template to the rule count: single-rule scenarios use a singular form ("Solely based on this rule…"), while multi-rule scenarios use a plural form ("…by combining these rules").
 
 ---
 
@@ -222,14 +218,14 @@ python scripts/llm-eval/tasks/build_zeroshot_tasks.py
 # Filtered example
 python scripts/llm-eval/tasks/build_zeroshot_tasks.py \
   --dataset-types rva,gs \
-  --operation-types ESRA-full,EMRA-full,SRA-full \
+  --operation-types NRP-full,ARP-full \
   --rules rdfs2,rdfs9
 ```
 
 | Argument | Default | Description |
 |---|---|---|
 | `--dataset-types` | all | Comma-separated dataset families (e.g. `rva,gs`) |
-| `--operation-types` | all 9 | Comma-separated operation types (e.g. `ESRA-full,SRA-name`) |
+| `--operation-types` | all 6 | Comma-separated operation types (e.g. `NRP-full,ARP-name`) |
 | `--rules` | all | Comma-separated rule ids (e.g. `rdfs2,rdfs2_3`) |
 | `--entry-limit` | 0 (all) | Debug: cap entries per dataset file |
 | `--max-files` | 0 (all) | Debug: process only first N dataset files |
@@ -245,7 +241,7 @@ Output: `data/llm-eval/tasks/zeroshot/{operation_type}/{dataset_type}/{n-rule}/t
 ```bash
 python scripts/llm-eval/adapters/to_openai_batch.py \
   --model gpt-4o-mini-2024-07-18 \
-  --operation-types ESRA-full \
+  --operation-types NRP-full \
   --dataset-types rva
 ```
 
@@ -254,7 +250,7 @@ python scripts/llm-eval/adapters/to_openai_batch.py \
 ```bash
 python scripts/llm-eval/adapters/to_sequential.py \
   --model llama3.1-8b \
-  --operation-types ESRA-full \
+  --operation-types NRP-full \
   --dataset-types rva
 ```
 
@@ -357,7 +353,7 @@ python scripts/llm-eval/eval/evaluate_outputs.py --mode strict --response-type o
 | `--mode` | `strict` | Evaluation mode: `strict` or `flex` |
 | `--response-type` | all | Sub-directory under `responses/` to scan (e.g. `openai-batch`, `sequential`). Omit to evaluate all. |
 | `--models` | all | Comma-separated model slugs to filter |
-| `--operation-types` | all | Comma-separated operation types to filter |
+| `--operation-types` | all | Comma-separated operation types to filter (e.g. `NRP-full,ARP-name`) |
 | `--dataset-types` | all | Comma-separated dataset types to filter |
 | `--rules` | all | Comma-separated rule ids to filter |
 | `--overwrite` | skip existing | Overwrite existing eval files |
@@ -407,7 +403,7 @@ Output: `data/llm-eval/reports/budget_estimate.xlsx`
 - **Detail sheet** — breakdown per (model, op-type, dataset, rule)
 
 Input tokens are counted from the prompt messages in each request file.
-Output tokens are estimated from `expected_output` in the corresponding task file (SRA operations also include the expected `[used_rules: ...]` line).
+Output tokens are estimated from `expected_output` in the corresponding task file (ARP operations also include the expected `[used_rules: ...]` line).
 
 Pricing is configured in `scripts/llm-eval/model-pricing.json` (USD per 1M tokens). Edit this file to update rates before running.
 
@@ -502,7 +498,7 @@ The difference between strict and flex scores quantifies the impact of output fo
 ```json
 {
   "metadata": {
-    "operation_type": "ESRA-full",
+    "operation_type": "NRP-full",
     "dataset_type": "rva",
     "rule_id": "rdfs2",
     "rules": ["rdfs2"]

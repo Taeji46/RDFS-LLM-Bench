@@ -15,7 +15,7 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 RDFS-LLM-Bench は、LLM が RDFS ベースの推論をどの程度実行できるかを体系的に評価します。
 6つのコア RDFS ルール（rdfs2, rdfs3, rdfs5, rdfs7, rdfs9, rdfs11）と
 13の複合ルール構成（計19ルール構成）を対象に、7種類のデータセット系列と
-9種類の推論操作タイプを提供します。
+6種類の推論操作タイプを提供します。
 
 ---
 
@@ -55,9 +55,8 @@ RDFS-LLM-Bench は、LLM が RDFS ベースの推論をどの程度実行でき�
 
 | 推論操作タイプ | 略称 | 説明 |
 |---|---|---|
-| Explicit Single-Rule Application | ESRA | 1つのルールを与え、モデルがそれを前提知識に適用する |
-| Explicit Multi-Rule Application | EMRA | 複数のルールを与え、モデルがそれらを組み合わせて適用する |
-| Selective Rule Application | SRA | 全ルールを与え、モデルが必要なものを選択・組み合わせて適用する |
+| Necessary Rule Presentation | NRP | 推論タスクに必要なルール（群）を与え、モデルがそれを前提知識に適用する |
+| All-Rule Presentation | ARP | 全 RDFS ルールを与え、モデルが必要なものを選択・適用する |
 
 各操作タイプには3種類の**ルール情報提示形式**があります。
 
@@ -67,26 +66,23 @@ RDFS-LLM-Bench は、LLM が RDFS ベースの推論をどの程度実行でき�
 | 名前のみ | `-name` | ルール名のみ |
 | 定義のみ | `-def` | 定義のみ |
 
-合計9種類の推論操作タイプ:
-`ESRA-full`, `ESRA-name`, `ESRA-def`, `EMRA-full`, `EMRA-name`, `EMRA-def`, `SRA-full`, `SRA-name`, `SRA-def`
+合計6種類の推論操作タイプ:
+`NRP-full`, `NRP-name`, `NRP-def`, `ARP-full`, `ARP-name`, `ARP-def`
 
 ### ルール数ごとの有効な組み合わせ
 
-全ての推論操作タイプが全ルール数に適用できるわけではありません。
+全ての推論操作タイプが全ルール数に適用できます。
 
 | | 1-rule | 2-rule | 3-rule |
 |---|---|---|---|
-| ESRA-full | ✓ | ✗ | ✗ |
-| ESRA-name | ✓ | ✗ | ✗ |
-| ESRA-def  | ✓ | ✓ | ✓ |
-| EMRA-full | ✗ | ✓ | ✓ |
-| EMRA-name | ✗ | ✓ | ✓ |
-| EMRA-def  | ✗ | ✓ | ✓ |
-| SRA-full  | ✓ | ✓ | ✓ |
-| SRA-name  | ✓ | ✓ | ✓ |
-| SRA-def   | ✓ | ✓ | ✓ |
+| NRP-full | ✓ | ✓ | ✓ |
+| NRP-name | ✓ | ✓ | ✓ |
+| NRP-def  | ✓ | ✓ | ✓ |
+| ARP-full | ✓ | ✓ | ✓ |
+| ARP-name | ✓ | ✓ | ✓ |
+| ARP-def  | ✓ | ✓ | ✓ |
 
-ESRA-full と ESRA-name は 2/3-rule データセットでは生成されません。複合ルール（例: `rdfs2_3`）には標準的な RDFS ルール名がないためです。EMRA 系は 1-rule データセットでは生成されません。多規則適用には少なくとも2つのルールが必要なためです。
+NRP のプロンプトはルール数に応じてテンプレートを切り替えます。1-rule では単数形（"Solely based on this rule…"）、多 rule では複数形（"…by combining these rules"）のテンプレートを使用します。
 
 ---
 
@@ -222,14 +218,14 @@ python scripts/llm-eval/tasks/build_zeroshot_tasks.py
 # 絞り込みの例
 python scripts/llm-eval/tasks/build_zeroshot_tasks.py \
   --dataset-types rva,gs \
-  --operation-types ESRA-full,EMRA-full,SRA-full \
+  --operation-types NRP-full,ARP-full \
   --rules rdfs2,rdfs9
 ```
 
 | 引数 | デフォルト | 説明 |
 |---|---|---|
 | `--dataset-types` | 全て | カンマ区切りのデータセット系列（例: `rva,gs`）|
-| `--operation-types` | 全9種 | カンマ区切りの推論操作タイプ（例: `ESRA-full,SRA-name`）|
+| `--operation-types` | 全6種 | カンマ区切りの推論操作タイプ（例: `NRP-full,ARP-name`）|
 | `--rules` | 全て | カンマ区切りのルールID（例: `rdfs2,rdfs2_3`）|
 | `--entry-limit` | 0（無制限）| デバッグ用: データセットファイルあたりのエントリ上限 |
 | `--max-files` | 0（無制限）| デバッグ用: 処理するファイル数の上限 |
@@ -245,7 +241,7 @@ python scripts/llm-eval/tasks/build_zeroshot_tasks.py \
 ```bash
 python scripts/llm-eval/adapters/to_openai_batch.py \
   --model gpt-4o-mini-2024-07-18 \
-  --operation-types ESRA-full \
+  --operation-types NRP-full \
   --dataset-types rva
 ```
 
@@ -254,7 +250,7 @@ python scripts/llm-eval/adapters/to_openai_batch.py \
 ```bash
 python scripts/llm-eval/adapters/to_sequential.py \
   --model llama3.1-8b \
-  --operation-types ESRA-full \
+  --operation-types NRP-full \
   --dataset-types rva
 ```
 
@@ -407,7 +403,7 @@ python scripts/llm-eval/run/estimate_budget.py --overwrite
 - **Detail シート** — (モデル, op-type, データセット, ルール) 単位の内訳
 
 input トークンはリクエストファイルのプロンプトメッセージから計算します。
-output トークンはタスクファイルの `expected_output` から推定します（SRA 系は `[used_rules: ...]` 行も含む）。
+output トークンはタスクファイルの `expected_output` から推定します（ARP 系は `[used_rules: ...]` 行も含む）。
 
 単価は `scripts/llm-eval/model-pricing.json` に USD/1M tokens 形式で記載されています。実行前に必要に応じて編集してください。
 
@@ -502,7 +498,7 @@ strict と flex のスコア差は、出力形式不遵守による影響の大�
 ```json
 {
   "metadata": {
-    "operation_type": "ESRA-full",
+    "operation_type": "NRP-full",
     "dataset_type": "rva",
     "rule_id": "rdfs2",
     "rules": ["rdfs2"]

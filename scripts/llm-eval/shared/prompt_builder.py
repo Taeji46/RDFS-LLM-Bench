@@ -1,15 +1,10 @@
 """Prompt builders for zero-shot task generation.
 
 Level naming convention:
-  Operation : ESRA (Explicit Single-Rule Application)
-            | EMRA (Explicit Multi-Rule Application)
-            | SRA  (Selective Rule Application)
+  Operation : NRP (Necessary Rule Presentation) — nrps internally for n=1, nrpm for n≥2
+            | ARP (All-Rule Presentation)
   Rule info : full (name+def) | name (name only) | def (definition only)
-  Format    : {operation}-{rule_info}  e.g. ESRA-full, EMRA-name, SRA-def
-
-Prompt template strings in this module are kept verbatim with
-`legacy/batch_api/create_batch_dataset.py` prompt builders
-for the variants that existed in the legacy system.
+  Format    : {operation}-{rule_info}  e.g. NRP-full, NRP-name, ARP-def
 """
 
 from __future__ import annotations
@@ -41,55 +36,56 @@ def build_prompt(operation_type: str, premise_knowledge: str, rule_id: str) -> s
     op_type = normalize_operation_type(operation_type)
     rule_keys = extract_rule_keys(rule_id)
 
-    # ── ESRA (Explicit Single-Rule Application) ───────────────────
-    if op_type == "ESRA-full":
-        rule_text = RULE_TEXT_BY_RULE_ID.get(rule_id.strip())
-        if not rule_text:
-            raise ValueError(f"ESRA-full requires known rule_id mapping, got: {rule_id}")
-        return _build_prompt_esra_full(rule_id, rule_text, premise_knowledge)
+    # ── NRP (Necessary Rule Presentation) ────────────────────────
+    if op_type == "NRP-full":
+        if len(rule_keys) == 1:
+            rule_text = RULE_TEXT_BY_RULE_ID.get(rule_id.strip())
+            if not rule_text:
+                raise ValueError(f"NRP-full (n=1) requires known rule_id mapping, got: {rule_id}")
+            return _build_prompt_nrps_full(rule_id, rule_text, premise_knowledge)
+        else:
+            _require_rule_keys(rule_id, rule_keys)
+            return _build_prompt_nrpm_full(premise_knowledge, rule_keys)
 
-    if op_type == "ESRA-name":
+    if op_type == "NRP-name":
         _require_rule_keys(rule_id, rule_keys)
-        return _build_prompt_esra_name(premise_knowledge, rule_keys)
+        if len(rule_keys) == 1:
+            return _build_prompt_nrps_name(premise_knowledge, rule_keys)
+        else:
+            return _build_prompt_nrpm_name(premise_knowledge, rule_keys)
 
-    if op_type == "ESRA-def":
-        rule_text = RULE_TEXT_BY_RULE_ID.get(rule_id.strip())
-        if not rule_text:
-            raise ValueError(f"ESRA-def requires known rule_id mapping, got: {rule_id}")
-        return _build_prompt_esra_def(rule_text, premise_knowledge)
+    if op_type == "NRP-def":
+        if len(rule_keys) == 1:
+            rule_text = RULE_TEXT_BY_RULE_ID.get(rule_id.strip())
+            if not rule_text:
+                raise ValueError(f"NRP-def (n=1) requires known rule_id mapping, got: {rule_id}")
+            return _build_prompt_nrps_def(rule_text, premise_knowledge)
+        else:
+            _require_rule_keys(rule_id, rule_keys)
+            return _build_prompt_nrpm_def(premise_knowledge, rule_keys)
 
-    # ── EMRA (Explicit Multi-Rule Application) ────────────────────
-    if op_type == "EMRA-full":
-        _require_rule_keys(rule_id, rule_keys)
-        return _build_prompt_emra_full(premise_knowledge, rule_keys)
+    # ── ARP (All-Rule Presentation) ───────────────────────────────
+    if op_type == "ARP-full":
+        return _build_prompt_arp_full(premise_knowledge)
 
-    if op_type == "EMRA-name":
-        _require_rule_keys(rule_id, rule_keys)
-        return _build_prompt_emra_name(premise_knowledge, rule_keys)
+    if op_type == "ARP-name":
+        return _build_prompt_arp_name(premise_knowledge)
 
-    if op_type == "EMRA-def":
-        _require_rule_keys(rule_id, rule_keys)
-        return _build_prompt_emra_def(premise_knowledge, rule_keys)
-
-    # ── SRA (Selective Rule Application) ─────────────────────────
-    if op_type == "SRA-full":
-        return _build_prompt_sra_full(premise_knowledge)
-
-    if op_type == "SRA-name":
-        return _build_prompt_sra_name(premise_knowledge)
-
-    if op_type == "SRA-def":
-        return _build_prompt_sra_def(premise_knowledge)
+    if op_type == "ARP-def":
+        return _build_prompt_arp_def(premise_knowledge)
 
     raise ValueError(f"Unsupported operation type: {operation_type}")
 
 
-def get_template_hash(operation_type: str) -> str:
+def get_template_hash(operation_type: str, rule_id: str = "") -> str:
     """Return a short content hash of the prompt template for operation_type.
 
     Calls each internal template builder with empty placeholder values so the
     hash reflects only the template structure (surrounding instruction text),
     not any rule definitions or premise knowledge content.
+
+    For NRP operations, rule_id is used to determine n (single vs multi),
+    since nrps (n=1) and nrpm (n≥2) use different template structures.
 
     Returns a string like "t-1a2b3c4d".
     """
@@ -100,30 +96,25 @@ def get_template_hash(operation_type: str) -> str:
     _p = ""   # empty premise_knowledge
     _t = ""   # empty rule_text
     _ks: list[str] = []  # empty rule_keys
+    n = len(extract_rule_keys(rule_id)) if rule_id else 0
 
-    if op == "ESRA-full":
-        user_prompt = _build_prompt_esra_full("", _t, _p)
-    elif op == "ESRA-name":
-        user_prompt = _build_prompt_esra_name(_p, _ks)
-    elif op == "ESRA-def":
-        user_prompt = _build_prompt_esra_def(_t, _p)
-    elif op == "EMRA-full":
-        user_prompt = _build_prompt_emra_full(_p, _ks)
-    elif op == "EMRA-name":
-        user_prompt = _build_prompt_emra_name(_p, _ks)
-    elif op == "EMRA-def":
-        user_prompt = _build_prompt_emra_def(_p, _ks)
-    elif op == "SRA-full":
-        user_prompt = _build_prompt_sra_full(_p)
-    elif op == "SRA-name":
-        user_prompt = _build_prompt_sra_name(_p)
-    elif op == "SRA-def":
-        user_prompt = _build_prompt_sra_def(_p)
+    if op == "NRP-full":
+        user_prompt = _build_prompt_nrps_full("", _t, _p) if n == 1 else _build_prompt_nrpm_full(_p, _ks)
+    elif op == "NRP-name":
+        user_prompt = _build_prompt_nrps_name(_p, _ks) if n == 1 else _build_prompt_nrpm_name(_p, _ks)
+    elif op == "NRP-def":
+        user_prompt = _build_prompt_nrps_def(_t, _p) if n == 1 else _build_prompt_nrpm_def(_p, _ks)
+    elif op == "ARP-full":
+        user_prompt = _build_prompt_arp_full(_p)
+    elif op == "ARP-name":
+        user_prompt = _build_prompt_arp_name(_p)
+    elif op == "ARP-def":
+        user_prompt = _build_prompt_arp_def(_p)
     else:
         raise ValueError(f"Unsupported operation type: {operation_type}")
 
     # Include op in fingerprint so that operation types whose builders collapse
-    # to the same string with empty inputs (e.g. EMRA-full vs EMRA-def) still
+    # to the same string with empty inputs (e.g. NRP-full vs NRP-def) still
     # receive distinct hashes, while all rule_ids within the same op_type share one.
     fingerprint = DEFAULT_SYSTEM_PROMPT + "\n---\n" + op + "\n---\n" + user_prompt
     return "t-" + hashlib.sha256(fingerprint.encode()).hexdigest()[:8]
@@ -173,10 +164,10 @@ _OUTPUT_SINGLE = "Output all triples that can be derived from this rule and do n
 _OUTPUT_MULTI = "Output all triples that can be derived from these rules and do not include any additional text or descriptions."
 
 
-# ── ESRA (Explicit Single-Rule Application) ───────────────────────
+# ── NRP single (n=1) ─────────────────────────────────────────────
 
-def _build_prompt_esra_full(rule_id: str, rule_text: str, premise_knowledge: str) -> str:
-    """ESRA-full: rule name + definition."""
+def _build_prompt_nrps_full(rule_id: str, rule_text: str, premise_knowledge: str) -> str:
+    """NRP-full n=1: rule name + definition."""
     return (
         _HEADER_SINGLE
         + f"Rule:\n{rule_id}: {rule_text}\n"
@@ -188,8 +179,8 @@ def _build_prompt_esra_full(rule_id: str, rule_text: str, premise_knowledge: str
     )
 
 
-def _build_prompt_esra_name(premise_knowledge: str, rule_keys: list[str]) -> str:
-    """ESRA-name: rule name only."""
+def _build_prompt_nrps_name(premise_knowledge: str, rule_keys: list[str]) -> str:
+    """NRP-name n=1: rule name only."""
     rules_text = ", ".join(rule_keys)
     return (
         _HEADER_SINGLE
@@ -201,8 +192,8 @@ def _build_prompt_esra_name(premise_knowledge: str, rule_keys: list[str]) -> str
     )
 
 
-def _build_prompt_esra_def(rule_text: str, premise_knowledge: str) -> str:
-    """ESRA-def: rule definition only."""
+def _build_prompt_nrps_def(rule_text: str, premise_knowledge: str) -> str:
+    """NRP-def n=1: rule definition only."""
     return (
         _HEADER_SINGLE
         + f"Rule: {rule_text}\n"
@@ -214,10 +205,10 @@ def _build_prompt_esra_def(rule_text: str, premise_knowledge: str) -> str:
     )
 
 
-# ── EMRA (Explicit Multi-Rule Application) ────────────────────────
+# ── NRP multi (n≥2) ──────────────────────────────────────────────
 
-def _build_prompt_emra_full(premise_knowledge: str, rule_keys: list[str]) -> str:
-    """EMRA-full: rule names + definitions."""
+def _build_prompt_nrpm_full(premise_knowledge: str, rule_keys: list[str]) -> str:
+    """NRP-full n≥2: rule names + definitions."""
     rules_text = "\n".join(f"{k}: {RULE_DEFINITIONS[k]}" for k in rule_keys)
     return (
         _HEADER_PLURAL
@@ -230,8 +221,8 @@ def _build_prompt_emra_full(premise_knowledge: str, rule_keys: list[str]) -> str
     )
 
 
-def _build_prompt_emra_name(premise_knowledge: str, rule_keys: list[str]) -> str:
-    """EMRA-name: rule names only."""
+def _build_prompt_nrpm_name(premise_knowledge: str, rule_keys: list[str]) -> str:
+    """NRP-name n≥2: rule names only."""
     rules_text = ", ".join(rule_keys)
     return (
         _HEADER_PLURAL
@@ -243,8 +234,8 @@ def _build_prompt_emra_name(premise_knowledge: str, rule_keys: list[str]) -> str
     )
 
 
-def _build_prompt_emra_def(premise_knowledge: str, rule_keys: list[str]) -> str:
-    """EMRA-def: rule definitions only."""
+def _build_prompt_nrpm_def(premise_knowledge: str, rule_keys: list[str]) -> str:
+    """NRP-def n≥2: rule definitions only."""
     rules_text = "\n".join(RULE_DEFINITIONS[k] for k in rule_keys)
     return (
         _HEADER_PLURAL
@@ -257,10 +248,10 @@ def _build_prompt_emra_def(premise_knowledge: str, rule_keys: list[str]) -> str:
     )
 
 
-# ── SRA (Selective Rule Application) ─────────────────────────────
+# ── ARP (All-Rule Presentation) ──────────────────────────────────
 
-def _build_prompt_sra_full(premise_knowledge: str) -> str:
-    """SRA-full: all rule names + definitions."""
+def _build_prompt_arp_full(premise_knowledge: str) -> str:
+    """ARP-full: all rule names + definitions."""
     rules_text = "\n".join(f"{k}: {v}" for k, v in RULE_DEFINITIONS.items())
     return (
         _HEADER_PLURAL
@@ -273,8 +264,8 @@ def _build_prompt_sra_full(premise_knowledge: str) -> str:
     )
 
 
-def _build_prompt_sra_name(premise_knowledge: str) -> str:
-    """SRA-name: all rule names only."""
+def _build_prompt_arp_name(premise_knowledge: str) -> str:
+    """ARP-name: all rule names only."""
     rules_text = ", ".join(RULE_DEFINITIONS.keys())
     return (
         _HEADER_PLURAL
@@ -286,8 +277,8 @@ def _build_prompt_sra_name(premise_knowledge: str) -> str:
     )
 
 
-def _build_prompt_sra_def(premise_knowledge: str) -> str:
-    """SRA-def: all rule definitions with anonymous labels (ruleA-ruleF)."""
+def _build_prompt_arp_def(premise_knowledge: str) -> str:
+    """ARP-def: all rule definitions with anonymous labels (ruleA-ruleF)."""
     rules_text = "\n".join(
         f"{label}: {defn}"
         for label, defn in zip(_RULE_LABELS, RULE_DEFINITIONS.values())

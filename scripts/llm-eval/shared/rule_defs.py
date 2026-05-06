@@ -37,21 +37,17 @@ RULE_TEXT_BY_RULE_ID: dict[str, str] = {
 }
 
 OPERATION_TYPES: tuple[str, ...] = (
-    "ESRA-full", "ESRA-name", "ESRA-def",
-    "EMRA-full", "EMRA-name", "EMRA-def",
-    "SRA-full",  "SRA-name",  "SRA-def",
+    "NRP-full", "NRP-name", "NRP-def",
+    "ARP-full", "ARP-name", "ARP-def",
 )
 
 OPERATION_TYPE_ALIASES: dict[str, str] = {
-    "esra-full": "ESRA-full",
-    "esra-name": "ESRA-name",
-    "esra-def":  "ESRA-def",
-    "emra-full": "EMRA-full",
-    "emra-name": "EMRA-name",
-    "emra-def":  "EMRA-def",
-    "sra-full":  "SRA-full",
-    "sra-name":  "SRA-name",
-    "sra-def":   "SRA-def",
+    "nrp-full": "NRP-full",
+    "nrp-name": "NRP-name",
+    "nrp-def":  "NRP-def",
+    "arp-full": "ARP-full",
+    "arp-name": "ARP-name",
+    "arp-def":  "ARP-def",
 }
 
 DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant."

@@ -12,7 +12,7 @@ Columns:
   model, operation_type, dataset_type, rule_id, n_rule,
   n_total, n_correct, accuracy,
   precision_triple, recall_triple, f1_triple,
-  [precision_rule, recall_rule, f1_rule]  -- only for SRA-full/SRA-name
+  [precision_rule, recall_rule, f1_rule]  -- only for ARP-full/ARP-name
 """
 
 from __future__ import annotations
@@ -125,7 +125,7 @@ def aggregate_file(eval_path: Path) -> dict | None:
         "f1_triple":        avg("f1_triple"),
     }
 
-    # Rule metrics present only for SRA-full / SRA-name
+    # Rule metrics present only for ARP-full / ARP-name
     if "precision_rule" in rows[0]:
         record["precision_rule"] = avg("precision_rule")
         record["recall_rule"]    = avg("recall_rule")

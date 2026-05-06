@@ -12,7 +12,7 @@ PROJECT_ROOT = THIS_FILE.parents[3]
 sys.path.insert(0, str(LLM_EVAL_DIR))
 
 from shared.io import read_json, write_jsonl
-from shared.prompt_builder import normalize_operation_type, get_template_hash
+from shared.prompt_builder import normalize_operation_type
 from shared.rule_defs import DEFAULT_SYSTEM_PROMPT, OPERATION_TYPES
 
 DEFAULT_ZEROSHOT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "tasks" / "zeroshot"
@@ -94,7 +94,7 @@ def convert_one(
     rule_id = _required_str(metadata, "rule_id", task_path)
     source_uid: str | None = metadata.get("source_uid") or None
     build_uid = _required_str(metadata, "build_uid", task_path)
-    template_uid: str = metadata.get("template_uid") or get_template_hash(operation_type)
+    template_uid = _required_str(metadata, "template_uid", task_path)
     rule_dir = str(metadata.get("rule_dir") or _rule_dir_from_rule(rule_id))
 
     rows: list[dict] = []
@@ -172,7 +172,7 @@ def main() -> int:
     model_config = _load_model_config("openai-batch")
     parser.add_argument("--model", type=str, required=True,
                         help=f"Model slug. Available: {', '.join(model_config)}")
-    parser.add_argument("--operation-types", type=str, default=",".join(OPERATION_TYPES), help="Comma-separated inference operation types (e.g. ESRA-full,EMRA-name)")
+    parser.add_argument("--operation-types", type=str, default=",".join(OPERATION_TYPES), help="Comma-separated inference operation types (e.g. NRP-full,NRP-name)")
     parser.add_argument("--dataset-types", type=str, default="", help="Comma-separated dataset types")
     parser.add_argument("--rules", type=str, default="", help="Comma-separated rule ids")
     parser.add_argument("--max-files", type=int, default=0, help="Debug option: process first N files")

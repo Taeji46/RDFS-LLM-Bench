@@ -127,7 +127,7 @@ def extract_used_rules(text: str) -> list[str]:
     """Extract rule names from [used_rules: ...] in model output.
 
     Normalizes ruleX labels (ruleA-ruleF) to rdfsN names so that
-    SRA-def outputs can be compared against rdfsN expected_rules.
+    ARP-def outputs can be compared against rdfsN expected_rules.
     """
     match = re.search(r'\[used_rules:\s*([^\]]+)\]', text)
     if not match:
@@ -155,4 +155,4 @@ def compute_set_metrics(
 
 
 # Operations that require rule identification evaluation
-SRA_RULE_EVAL_OPS = {"SRA-full", "SRA-name", "SRA-def"}
+ARP_RULE_EVAL_OPS = {"ARP-full", "ARP-name", "ARP-def"}

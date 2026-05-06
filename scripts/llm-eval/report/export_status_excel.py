@@ -7,8 +7,8 @@ Cell values:
   - = no task file (combination structurally undefined, e.g. rdfs5 on gs/gsc)
 
 Composite-metric-relevant cells are highlighted with a hatched fill:
-  - ESRA-full, EMRA-full, SRA-full: all dataset columns where task exists
-  - ESRA-name × 1-rule: ns column only
+  - NRP-full, ARP-full: all dataset columns where task exists
+  - NRP-name × 1-rule: ns column only
 
 Reads tasks from:
   data/llm-eval/tasks/zeroshot/{op}/{dataset}/{n-rule}/task__*.json
@@ -35,14 +35,13 @@ DEFAULT_RESPONSE_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "responses"
 DEFAULT_REPORT_ROOT   = PROJECT_ROOT / "data" / "llm-eval" / "reports"
 
 OPERATION_TYPE_ORDER = [
-    "ESRA-full", "ESRA-name", "ESRA-def",
-    "EMRA-full", "EMRA-name", "EMRA-def",
-    "SRA-full",  "SRA-name",  "SRA-def",
+    "NRP-full", "NRP-name", "NRP-def",
+    "ARP-full", "ARP-name", "ARP-def",
 ]
 
 DATASET_TYPE_ORDER = ["rk", "ls", "gs", "gsc", "rva", "ns", "nsc"]
 
-COMPOSITE_FULL_OPS = {"ESRA-full", "EMRA-full", "SRA-full"}
+COMPOSITE_FULL_OPS = {"NRP-full", "ARP-full"}
 
 _UID_RE = re.compile(r"^[a-z]-[0-9a-f]{8}$")
 
@@ -67,7 +66,7 @@ def _is_composite_cell(op_type: str, rule_id: str, ds_type: str) -> bool:
     """Returns True if this specific cell is needed for composite metrics."""
     if op_type in COMPOSITE_FULL_OPS:
         return ds_type in {"rk", "ns", "gs", "gsc", "nsc"}
-    if op_type == "ESRA-name" and _n_rule(rule_id) == 1:
+    if op_type == "NRP-name" and _n_rule(rule_id) == 1:
         return ds_type == "ns"
     return False
 

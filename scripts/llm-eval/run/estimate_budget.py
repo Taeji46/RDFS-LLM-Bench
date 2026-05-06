@@ -6,7 +6,7 @@ Reads request files from:
 Counts:
   input  tokens — from prompt messages in each request line
   output tokens — from expected_output in the corresponding task file
-                  (SRA ops also include estimated [used_rules: ...] line)
+                  (ARP ops also include estimated [used_rules: ...] line)
 
 Pricing loaded from:
   scripts/llm-eval/model-pricing.json
@@ -35,7 +35,7 @@ REPORT_ROOT      = PROJECT_ROOT / "data" / "llm-eval" / "reports"
 PRICING_PATH     = LLM_EVAL_DIR / "model-pricing.json"
 
 QUEUE_DIRS = ["openai-batch", "openai-compat", "ollama"]
-SRA_OPS    = {"SRA-full", "SRA-name", "SRA-def"}
+ARP_OPS    = {"ARP-full", "ARP-name", "ARP-def"}
 
 _RULE_LABEL_MAP = {
     "rdfs2": "ruleA", "rdfs3": "ruleB", "rdfs5": "ruleC",
@@ -89,12 +89,12 @@ def _build_task_index() -> dict[tuple[str, str, str], list[dict]]:
 
 
 def _expected_output_text(task: dict, op_type: str, rule_id: str) -> str:
-    """Build the expected model output string (triples + used_rules for SRA)."""
+    """Build the expected model output string (triples + used_rules for ARP)."""
     out = task.get("expected_output", "")
-    if op_type in SRA_OPS:
+    if op_type in ARP_OPS:
         # Reconstruct expected [used_rules: ...] from rule_id
         rule_nums = re.findall(r"\d+", rule_id)
-        if op_type == "SRA-def":
+        if op_type == "ARP-def":
             labels = [_RULE_LABEL_MAP.get(f"rdfs{n}", f"rdfs{n}") for n in rule_nums]
             used = "[used_rules: " + ", ".join(labels) + "]"
         else:
