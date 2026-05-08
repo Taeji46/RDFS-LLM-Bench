@@ -77,7 +77,9 @@ def _write_workbook(model: str, records: list[dict], report_root: Path, overwrit
         by_op[rec["operation_type"]].append(rec)
 
     wb = openpyxl.Workbook()
-    wb.remove(wb.active)  # remove default sheet
+    default_ws = wb.active
+    assert default_ws is not None
+    wb.remove(default_ws)  # remove default sheet
 
     # Determine operation_type order
     op_types = [op for op in OPERATION_TYPE_ORDER if op in by_op]

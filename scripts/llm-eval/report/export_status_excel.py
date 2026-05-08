@@ -218,7 +218,9 @@ def write_status_excel(
     left   = Alignment(horizontal="left",   vertical="center", indent=1)
 
     wb = openpyxl.Workbook()
-    wb.remove(wb.active)
+    default_ws = wb.active
+    assert default_ws is not None
+    wb.remove(default_ws)
 
     for model in sorted(done.keys()):
         model_responses = done[model]

@@ -92,9 +92,12 @@ def compute(records: list[dict]) -> dict[str, dict[str, dict[tuple[str, int], fl
 
 
 def _write_sheet(wb: openpyxl.Workbook, title: str, ds_data: dict[str, dict[tuple[str, int], float | None]], first: bool) -> None:
-    ws = wb.active if first else wb.create_sheet(title=title)
     if first:
+        ws = wb.active
+        assert ws is not None
         ws.title = title
+    else:
+        ws = wb.create_sheet(title=title)
 
     hdr_fill = PatternFill("solid", fgColor="4472C4")
     hdr_font = Font(bold=True, color="FFFFFF")
