@@ -10,6 +10,8 @@ experiment_tasks.md
 experiment_tasks2.md
 experiment_tasks3.md
 experiment_tasks4.md
+experiment_tasks5.md
+experiment_tasks6.md
 license_tasks.md
 rdfs5_chains_406.json
 analysis_lov_licenses.md
@@ -19,8 +21,12 @@ analysis_rdfs2_overgeneralization.md
 .claude/
 pyrightconfig.json
 
+# One-off sampling scripts (reasoning-trace samples)
+scripts/llm-eval/sampling/
+
 # Zenodo upload artifacts
 zenodo-upload/
+zenodo-upload-v2/
 
 # Datasets and eval data (published via Zenodo)
 data/lod-samples/
