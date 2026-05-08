@@ -447,14 +447,25 @@ Output: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx` (one 
 
 ### (Optional) Rule-level analysis
 
-Per-single-rule F1 breakdown across all operation types and n_rules (rule_info == "full" only):
+Per-rule F1 breakdown using only single-rule scenarios (n_rule == 1, rule_info == "full"). Multi-rule scenarios are excluded so that each rule's score reflects its intrinsic difficulty without contamination from other rules in chained patterns.
 
 ```bash
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode strict
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode flex
 ```
 
-Output: `data/llm-eval/reports/{strict,flex}/rule_level_analysis-{mode}.xlsx` (one sheet per dataset type)
+Output: `data/llm-eval/reports/{strict,flex}/rule_accuracy_analysis-{mode}.xlsx` (one sheet per dataset type)
+
+### (Optional) F1 by dataset variant
+
+A single-table summary of F1 averaged over the six (NRP/ARP × {1-rule, 2-rule, 3-rule}) cells under the full setting, with rows = LLMs and columns = dataset variants:
+
+```bash
+python scripts/llm-eval/report/f1_by_dataset_table.py --mode strict
+python scripts/llm-eval/report/f1_by_dataset_table.py --mode flex
+```
+
+Output: `data/llm-eval/reports/{strict,flex}/f1_by_dataset-{mode}.xlsx`
 
 ---
 
@@ -555,7 +566,7 @@ The datasets are derived from the following sources:
 
 - [DBpedia](https://dbpedia.org) — CC BY-SA 3.0
 - [Wikidata](https://www.wikidata.org) — CC0 1.0
-- [schema.org](https://schema.org) — CC BY-SA 4.0
+- [schema.org](https://schema.org) — CC BY-SA 3.0
 
 Data was collected via SPARQL queries against the public endpoints of the above sources.
 

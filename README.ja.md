@@ -447,14 +447,25 @@ python scripts/llm-eval/report/analyze_scaling.py --mode flex
 
 ### （任意）ルールレベル分析
 
-単一ルールごとの F1 内訳を全 operation type・n_rule にわたって集計します（rule_info == "full" のみ対象）：
+各ルール単体の F1 を 1-rule シナリオのみ（n_rule == 1, rule_info == "full"）から算出します。マルチルールシナリオを除外することで、他ルールの難易度に汚染されない、各ルール固有の難しさを測れます：
 
 ```bash
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode strict
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode flex
 ```
 
-出力先: `data/llm-eval/reports/{strict,flex}/rule_level_analysis-{mode}.xlsx`（データセット種別ごとに1シート）
+出力先: `data/llm-eval/reports/{strict,flex}/rule_accuracy_analysis-{mode}.xlsx`（データセット種別ごとに1シート）
+
+### （任意）データセット別 F1 集計
+
+`full` 設定のみ、6セル（NRP/ARP × {1-rule, 2-rule, 3-rule}）の平均 F1 を、行=LLM・列=データセット種別の単一表にまとめます：
+
+```bash
+python scripts/llm-eval/report/f1_by_dataset_table.py --mode strict
+python scripts/llm-eval/report/f1_by_dataset_table.py --mode flex
+```
+
+出力先: `data/llm-eval/reports/{strict,flex}/f1_by_dataset-{mode}.xlsx`
 
 ---
 
@@ -555,7 +566,7 @@ SPARQL エンドポイントの負荷や一時的不安定が原因です。時�
 
 - [DBpedia](https://dbpedia.org) — CC BY-SA 3.0
 - [Wikidata](https://www.wikidata.org) — CC0 1.0
-- [schema.org](https://schema.org) — CC BY-SA 4.0
+- [schema.org](https://schema.org) — CC BY-SA 3.0
 
 データは各ソースの公開 SPARQL エンドポイントへのクエリにより収集しました。
 
