@@ -1,15 +1,14 @@
-"""Rule-level analysis: per-single-rule F1 broken down by dataset type.
+"""Per-rule F1 analysis using 1-rule scenarios only.
 
-For each record with rule_info == "full", expand the `rules` column
-(e.g. "rdfs2,rdfs3") to assign f1_triple to each constituent rule.
-Average per (dataset_type, model, single_rule) across all operation_types
-and n_rules.
+Filters to n_rule == 1 and rule_info == "full".
+Each rule's score is its mean f1_triple in single-rule scenarios,
+uncontaminated by other rules' difficulty in multi-rule scenarios.
 
 One sheet per dataset type (rk / ls / gs / gsc / ns / nsc / rva).
 Each sheet: rows = rules (rdfs2~rdfs11), columns = models.
 
 Reads:  data/llm-eval/reports/{mode}/scores-{mode}.csv
-Writes: data/llm-eval/reports/{mode}/rule_level_analysis-{mode}.xlsx
+Writes: data/llm-eval/reports/{mode}/rule_accuracy_analysis-{mode}.xlsx
 """
 
 from __future__ import annotations
@@ -52,52 +51,48 @@ def load_scores(csv_path: Path) -> list[dict]:
 
 
 def compute(records: list[dict]) -> dict[str, dict[str, dict[str, float | None]]]:
-    """Returns {dataset_type: {model: {single_rule: mean_f1}}}.
+    """Returns {dataset_type: {model: {rule_id: mean_f1}}}.
 
-    Averaging procedure (same logic as composite metrics):
-      For each (dataset_type, model, single_rule, n_rule):
-        mean f1_triple across all rule combinations containing that rule.
-      Then average the n_rule-level means with equal weight.
+    Only 1-rule, rule_info==full records are used.
+    Each rule's score is the mean f1_triple across operation_types
+    (macro-average since record counts are equal across operation_types).
     """
-    # (dataset_type, model, single_rule, n_rule) -> [f1_triple values]
-    buckets: dict[tuple[str, str, str, int], list[float]] = defaultdict(list)
+    # (dataset_type, model, rule_id, operation_type) -> [f1 values]
+    fine: dict[tuple[str, str, str, str], list[float]] = defaultdict(list)
 
     for rec in records:
+        if rec.get("n_rule") != "1":
+            continue
         if rec.get("rule_info") != "full":
             continue
         f1 = _float(rec.get("f1_triple", ""))
         if f1 is None:
             continue
-        model = rec["model"]
-        ds = rec["dataset_type"]
-        n_rule = int(rec["n_rule"])
-        rules = [r.strip() for r in rec.get("rules", "").split(",") if r.strip()]
-        for rule in rules:
-            buckets[(ds, model, rule, n_rule)].append(f1)
+        fine[(rec["dataset_type"], rec["model"], rec["rule_id"], rec["operation_type"])].append(f1)
 
-    models = sorted({k[1] for k in buckets})
-    n_rules = sorted({k[3] for k in buckets})
-
+    models = sorted({k[1] for k in fine})
     result: dict[str, dict[str, dict[str, float | None]]] = {}
     for ds in DATASET_TYPES:
         result[ds] = {}
         for model in models:
             result[ds][model] = {}
             for rule in ALL_RULES:
-                # average within each n_rule level, then average across levels
-                level_means: list[float] = []
-                for n_rule in n_rules:
-                    vals = buckets.get((ds, model, rule, n_rule), [])
-                    if vals:
-                        level_means.append(mean(vals))
-                result[ds][model][rule] = mean(level_means) if level_means else None
+                op_means = [
+                    mean(v)
+                    for (d, m, r, op), v in fine.items()
+                    if d == ds and m == model and r == rule and v
+                ]
+                result[ds][model][rule] = mean(op_means) if op_means else None
     return result
 
 
 def _write_sheet(wb: openpyxl.Workbook, title: str, ds_data: dict[str, dict[str, float | None]], first: bool) -> None:
-    ws = wb.active if first else wb.create_sheet(title=title)
     if first:
+        ws = wb.active
+        assert ws is not None
         ws.title = title
+    else:
+        ws = wb.create_sheet(title=title)
 
     hdr_fill = PatternFill("solid", fgColor="4472C4")
     hdr_font = Font(bold=True, color="FFFFFF")
@@ -119,7 +114,7 @@ def _write_sheet(wb: openpyxl.Workbook, title: str, ds_data: dict[str, dict[str,
         ws.cell(row=row, column=1, value=rule).font = Font(bold=True)
         for col, model in enumerate(models, 2):
             val = ds_data[model].get(rule)
-            c = ws.cell(row=row, column=col, value=round(val, 4) if val is not None else "")
+            c = ws.cell(row=row, column=col, value=round(val, 4) if val is not None else "N/A")
             c.alignment = right
             if val is not None:
                 c.number_format = "0.0000"
@@ -141,7 +136,7 @@ def write_excel(data: dict[str, dict[str, dict[str, float | None]]], out_path: P
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Per-rule F1 analysis using 1-rule scenarios only.")
     parser.add_argument("--mode", default="strict", choices=["strict", "flex"])
     parser.add_argument("--report-root", type=Path, default=DEFAULT_REPORT_ROOT)
     parser.add_argument("--overwrite", action="store_true")
