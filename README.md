@@ -8,8 +8,6 @@ A Benchmark for Evaluating RDF Schema Inference in LLMs.
 
 Japanese version: [README.ja.md](README.ja.md)
 
-> **Note.** This project supports **v3.0.0+** Zenodo deposits. Use the latest version on Zenodo.
-
 ---
 
 ## Contents
@@ -164,8 +162,6 @@ pip install -r requirements.txt
 ### 2. Download the pre-built benchmark from Zenodo
 
 The benchmark is published at [Zenodo (DOI: 10.5281/zenodo.19867258)](https://doi.org/10.5281/zenodo.19867258). Download `tasks.zip` and extract it to the project's data directory:
-
-> **Note.** This codebase supports v3.0.0+ Zenodo deposits. Be sure to use the latest version on Zenodo.
 
 ```bash
 mkdir -p data/llm-eval

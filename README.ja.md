@@ -8,8 +8,6 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 
 英語版: [README.md](README.md)
 
-> **注意。** 本プロジェクトは **v3.0.0 以降**の Zenodo 公開版に対応しています。Zenodo の最新版をご利用ください。
-
 ---
 
 ## 目次
@@ -164,8 +162,6 @@ pip install -r requirements.txt
 ### 2. Zenodo からベンチマークを取得
 
 ベンチマークは [Zenodo（DOI: 10.5281/zenodo.19867258）](https://doi.org/10.5281/zenodo.19867258) で公開しています。`tasks.zip` をダウンロードして、プロジェクトのデータディレクトリに展開します:
-
-> **注意。** 本コードベースは v3.0.0 以降の Zenodo 公開版に対応しています。Zenodo の最新版を取得してください。
 
 ```bash
 mkdir -p data/llm-eval
