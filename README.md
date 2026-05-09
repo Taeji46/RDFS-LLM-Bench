@@ -8,7 +8,7 @@ A Benchmark for Evaluating RDF Schema Inference in LLMs.
 
 Japanese version: [README.ja.md](README.ja.md)
 
-> **Note.** This project's code and corresponding Zenodo deposit are at **v3.0.0+**. Earlier Zenodo deposits are not compatible.
+> **Note.** This project supports **v3.0.0+** Zenodo deposits. Use the latest version on Zenodo.
 
 ---
 
@@ -165,6 +165,8 @@ pip install -r requirements.txt
 
 The benchmark is published at [Zenodo (DOI: 10.5281/zenodo.19867258)](https://doi.org/10.5281/zenodo.19867258). Download `tasks.zip` and extract it to the project's data directory:
 
+> **Note.** This codebase supports v3.0.0+ Zenodo deposits. Be sure to use the latest version on Zenodo.
+
 ```bash
 mkdir -p data/llm-eval
 cd data/llm-eval && unzip /path/to/tasks.zip && cd -
@@ -217,11 +219,15 @@ scripts/build-dataset/lod-sample-config.json
 
 ### 4. Build benchmark datasets
 
-```bash
-# All variants at once
-python scripts/build-dataset/run_all.py
+Build all variants at once:
 
-# Or individual variants
+```bash
+python scripts/build-dataset/run_all.py
+```
+
+Or build individual variants:
+
+```bash
 python scripts/build-dataset/from-samples/gen_rk.py
 python scripts/build-dataset/from-samples/gen_ls.py
 python scripts/build-dataset/from-samples/gen_gs-gsc.py
@@ -236,11 +242,15 @@ Output: `data/datasets/{dataset_variant}/{1,2,3}-rule/dataset__*.json`
 
 Generates prompt files from the benchmark datasets for each prompt condition (PRT × Rule Format).
 
-```bash
-# All prompt conditions and dataset variants
-python scripts/llm-eval/tasks/build_zeroshot_tasks.py
+Build all prompting conditions and dataset variants:
 
-# Filtered example
+```bash
+python scripts/llm-eval/tasks/build_zeroshot_tasks.py
+```
+
+Filtered example:
+
+```bash
 python scripts/llm-eval/tasks/build_zeroshot_tasks.py \
   --dataset-variants rva,gs \
   --prompting-conditions NRP-full,ARP-full \

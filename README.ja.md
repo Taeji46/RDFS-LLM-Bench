@@ -8,7 +8,7 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 
 英語版: [README.md](README.md)
 
-> **注意。** 本プロジェクトのコードおよび対応する Zenodo 公開版は **v3.0.0 以降**です。旧 Zenodo 公開版とは互換性がありません。
+> **注意。** 本プロジェクトは **v3.0.0 以降**の Zenodo 公開版に対応しています。Zenodo の最新版をご利用ください。
 
 ---
 
@@ -165,6 +165,8 @@ pip install -r requirements.txt
 
 ベンチマークは [Zenodo（DOI: 10.5281/zenodo.19867258）](https://doi.org/10.5281/zenodo.19867258) で公開しています。`tasks.zip` をダウンロードして、プロジェクトのデータディレクトリに展開します:
 
+> **注意。** 本コードベースは v3.0.0 以降の Zenodo 公開版に対応しています。Zenodo の最新版を取得してください。
+
 ```bash
 mkdir -p data/llm-eval
 cd data/llm-eval && unzip /path/to/tasks.zip && cd -
@@ -217,11 +219,15 @@ scripts/build-dataset/lod-sample-config.json
 
 ### 4. ベンチマークデータセットの生成
 
-```bash
-# 全種類を一括生成
-python scripts/build-dataset/run_all.py
+全 dataset variant を一括生成:
 
-# 個別に生成する場合
+```bash
+python scripts/build-dataset/run_all.py
+```
+
+個別に生成する場合:
+
+```bash
 python scripts/build-dataset/from-samples/gen_rk.py
 python scripts/build-dataset/from-samples/gen_ls.py
 python scripts/build-dataset/from-samples/gen_gs-gsc.py
@@ -236,11 +242,15 @@ python scripts/build-dataset/standalone/gen_rva.py
 
 生成したデータセットから、各プロンプト条件（PRT × Rule Format）のプロンプトファイルを作ります。
 
-```bash
-# 全プロンプト条件・全データセット種類
-python scripts/llm-eval/tasks/build_zeroshot_tasks.py
+全 prompting condition × 全 dataset variant を一括生成:
 
-# 絞り込みの例
+```bash
+python scripts/llm-eval/tasks/build_zeroshot_tasks.py
+```
+
+絞り込みの例:
+
+```bash
 python scripts/llm-eval/tasks/build_zeroshot_tasks.py \
   --dataset-variants rva,gs \
   --prompting-conditions NRP-full,ARP-full \
