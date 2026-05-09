@@ -7,7 +7,7 @@ Run:
   python openai_batch_download.py --queue <queue-name>
 
 Saves responses to:
-  data/llm-eval/responses/openai-batch/{slug}/{operation_type}/{dataset_type}/{n-rule}/
+  data/llm-eval/responses/openai-batch/{slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
     response__{slug}__{op}__{type}__{rule}__n{N}__...__batch_{batch_id}__{YYYYMMDDHHMMSS}.jsonl
 
 Completed entries are removed from the mapping.
@@ -71,9 +71,9 @@ def _parse_batch_stem(stem: str) -> dict | None:
         return None
     return {
         "slug": parts[0],
-        "operation_type": parts[1],
-        "dataset_type": parts[2],
-        "rule_id": parts[3],
+        "prompting_condition": parts[1],
+        "dataset_variant": parts[2],
+        "pattern_id": parts[3],
     }
 
 
@@ -94,8 +94,8 @@ def _response_path(entry: dict, response_root: Path, completed_at: int | None = 
         new_name = f"{response_stem}__{batch_id}.jsonl"
 
     if meta:
-        rule_dir = f"{meta['rule_id'].count('_') + 1}-rule"
-        return response_root / meta["slug"] / meta["operation_type"] / meta["dataset_type"] / rule_dir / new_name
+        rule_dir = f"{meta['pattern_id'].count('_') + 1}-rule"
+        return response_root / meta["slug"] / meta["prompting_condition"] / meta["dataset_variant"] / rule_dir / new_name
     else:
         return response_root / new_name
 

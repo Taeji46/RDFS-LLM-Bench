@@ -1,16 +1,16 @@
 """Scaling analysis: how f1_triple changes across 1-rule / 2-rule / 3-rule.
 
-Averages f1_triple per (dataset_type, model, operation_family, n_rule)
-across all rule_ids, separately for each rule_info ∈ {full, def, name}.
+Averages f1_triple per (dataset_variant, model, presented_rule_type, n_rule)
+across all pattern_ids, separately for each rule_format ∈ {full, def, name}.
 
-Valid (operation_family, n_rule) combinations:
+Valid (presented_rule_type, n_rule) combinations:
   NRP: 1, 2, 3
   ARP: 1, 2, 3
 
-Sheets (one per (rule_info, dataset_type) combination, when data exists):
-  - rule_info == "full":  rk / ls / gs / gsc / ns / nsc / rva
-  - rule_info == "def":   rk-def / ls-def / gs-def / gsc-def / ns-def / nsc-def / rva-def
-  - rule_info == "name":  rk-name / ls-name / gs-name / gsc-name / ns-name / nsc-name / rva-name
+Sheets (one per (rule_format, dataset_variant) combination, when data exists):
+  - rule_format == "full":  rk / ls / gs / gsc / ns / nsc / rva
+  - rule_format == "def":   rk-def / ls-def / gs-def / gsc-def / ns-def / nsc-def / rva-def
+  - rule_format == "name":  rk-name / ls-name / gs-name / gsc-name / ns-name / nsc-name / rva-name
 
 Cells without experimental data appear blank (e.g., gpt-oss × name on rk).
 
@@ -39,8 +39,8 @@ VALID_COMBOS = {
     "NRP": [1, 2, 3],
     "ARP": [1, 2, 3],
 }
-DATASET_TYPES = ["rk", "ls", "gs", "gsc", "ns", "nsc", "rva"]
-RULE_INFOS = ["full", "def", "name"]
+DATASET_VARIANTS = ["rk", "ls", "gs", "gsc", "ns", "nsc", "rva"]
+RULE_FORMATS = ["full", "def", "name"]
 
 
 def _relpath(p: Path) -> str:
@@ -63,26 +63,26 @@ def load_scores(csv_path: Path) -> list[dict]:
 
 
 def compute(
-    records: list[dict], rule_info_filter: str = "full", dataset_filter: list[str] | None = None
+    records: list[dict], rule_format_filter: str = "full", dataset_filter: list[str] | None = None
 ) -> dict[str, dict[str, dict[tuple[str, int], float | None]]]:
-    """Returns {dataset_type: {model: {(family, n_rule): mean_f1}}}.
+    """Returns {dataset_variant: {model: {(family, n_rule): mean_f1}}}.
 
-    Filters records by rule_info (default "full") and optionally by dataset_type.
+    Filters records by rule_format (default "full") and optionally by dataset_variant.
     """
-    datasets = dataset_filter if dataset_filter is not None else DATASET_TYPES
+    datasets = dataset_filter if dataset_filter is not None else DATASET_VARIANTS
     buckets: dict[tuple[str, str, str, int], list[float]] = defaultdict(list)
 
     for rec in records:
-        if rec.get("rule_info") != rule_info_filter:
+        if rec.get("rule_format") != rule_format_filter:
             continue
         f1 = _float(rec.get("f1_triple", ""))
         if f1 is None:
             continue
         model = rec["model"]
-        ds = rec["dataset_type"]
+        ds = rec["dataset_variant"]
         if ds not in datasets:
             continue
-        family = rec["operation_family"]
+        family = rec["presented_rule_type"]
         n_rule = int(rec["n_rule"])
         if family not in FAMILIES:
             continue
@@ -118,7 +118,7 @@ def _write_sheet(wb: openpyxl.Workbook, title: str, ds_data: dict[str, dict[tupl
 
     models = sorted(ds_data.keys())
 
-    ws.cell(row=1, column=1, value="operation_family").font = hdr_font
+    ws.cell(row=1, column=1, value="presented_rule_type").font = hdr_font
     ws.cell(row=1, column=1).fill = hdr_fill
     ws.cell(row=1, column=1).alignment = center
     ws.cell(row=1, column=2, value="n_rule").font = hdr_font
@@ -154,12 +154,12 @@ def write_excel(
     data_by_info: dict[str, dict[str, dict[str, dict[tuple[str, int], float | None]]]],
     out_path: Path,
 ) -> None:
-    """data_by_info: {rule_info: {dataset_type: {model: {(family, n_rule): f1}}}}."""
+    """data_by_info: {rule_format: {dataset_variant: {model: {(family, n_rule): f1}}}}."""
     wb = openpyxl.Workbook()
     first = True
-    for ri in RULE_INFOS:
+    for ri in RULE_FORMATS:
         ds_data_by_ds = data_by_info.get(ri, {})
-        for ds in DATASET_TYPES:
+        for ds in DATASET_VARIANTS:
             ds_data = ds_data_by_ds.get(ds, {})
             if not ds_data:
                 continue
@@ -198,11 +198,11 @@ def main() -> int:
 
     records = load_scores(csv_path)
     data_by_info = {
-        ri: compute(records, rule_info_filter=ri) for ri in RULE_INFOS
+        ri: compute(records, rule_format_filter=ri) for ri in RULE_FORMATS
     }
 
-    for ri in RULE_INFOS:
-        for ds in DATASET_TYPES:
+    for ri in RULE_FORMATS:
+        for ds in DATASET_VARIANTS:
             ds_data = data_by_info[ri].get(ds, {})
             if not ds_data:
                 continue

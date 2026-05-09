@@ -20,7 +20,7 @@ from shared._base import (
     save_dataset,
 )
 
-DATASET_TYPE = "rk"
+DATASET_VARIANT = "rk"
 
 
 def _infer_source(meta: dict) -> str:
@@ -68,7 +68,7 @@ def main() -> None:
         print(f"\n=== {rule} ===")
         try:
             dataset, fetch_uid, fetched_at, filename = build_rk(rule)
-            save_dataset(dataset, rule, DATASET_TYPE, fetch_uid, fetched_at, filename, build_date=build_date)
+            save_dataset(dataset, rule, DATASET_VARIANT, fetch_uid, fetched_at, filename, build_date=build_date)
         except FileNotFoundError as exc:
             print(f"  SKIP: {exc}")
 

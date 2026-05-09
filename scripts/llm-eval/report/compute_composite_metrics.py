@@ -29,7 +29,7 @@ Pre-training knowledge:
 Averaging procedure:
   For each of 6 (family × n_rule) combinations:
     (NRP:1-rule, NRP:2-rule, NRP:3-rule, ARP:1-rule, ARP:2-rule, ARP:3-rule)
-  compute the mean F1 over all applicable rule_info variants and rule_ids,
+  compute the mean F1 over all applicable rule_format variants and pattern_ids,
   then take the mean of these 6 values.
 """
 
@@ -46,7 +46,7 @@ PROJECT_ROOT = THIS_FILE.parents[3]
 
 DEFAULT_REPORT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "reports"
 
-# Valid (operation_family, n_rule) combinations for averaging
+# Valid (presented_rule_type, n_rule) combinations for averaging
 COMBO_KEYS = [
     ("NRP", 1),
     ("NRP", 2),
@@ -57,7 +57,7 @@ COMBO_KEYS = [
 ]
 
 # For rule selection metrics, only ARP-full and ARP-name have f1_rule
-RULE_EVAL_OP_TYPES = {"ARP-full", "ARP-name"}
+RULE_EVAL_PROMPTING_CONDITIONS = {"ARP-full", "ARP-name"}
 
 
 def _relpath(path: Path) -> str:
@@ -89,33 +89,33 @@ def _mean_or_none(values: list[float]) -> float | None:
 def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
     """Compute all 7 composite metrics for one model's records."""
 
-    # Index: (operation_type, dataset_type, rule_id) -> record
+    # Index: (prompting_condition, dataset_variant, pattern_id) -> record
     idx: dict[tuple, dict] = {}
     for rec in records:
-        key = (rec["operation_type"], rec["dataset_type"], rec["rule_id"])
+        key = (rec["prompting_condition"], rec["dataset_variant"], rec["pattern_id"])
         idx[key] = rec
 
-    def _f1_triple(op_type: str, ds: str, rule_id: str) -> float | None:
-        rec = idx.get((op_type, ds, rule_id))
+    def _f1_triple(prompting_condition: str, ds: str, pattern_id: str) -> float | None:
+        rec = idx.get((prompting_condition, ds, pattern_id))
         return _float(rec["f1_triple"]) if rec else None
 
-    def _f1_rule(op_type: str, ds: str, rule_id: str) -> float | None:
-        rec = idx.get((op_type, ds, rule_id))
+    def _f1_rule(prompting_condition: str, ds: str, pattern_id: str) -> float | None:
+        rec = idx.get((prompting_condition, ds, pattern_id))
         if rec is None:
             return None
         v = _float(rec.get("f1_rule", ""))
         return v if v is not None else None
 
-    # Collect all rule_ids per (family, n_rule)
+    # Collect all pattern_ids per (family, n_rule)
     combo_rules: dict[tuple, set[str]] = defaultdict(set)
     for rec in records:
-        family = rec["operation_family"]
+        family = rec["presented_rule_type"]
         n_rule = int(rec["n_rule"])
         key = (family, n_rule)
         if key in COMBO_KEYS:
-            combo_rules[key].add(rec["rule_id"])
+            combo_rules[key].add(rec["pattern_id"])
 
-    # Full-variant operation type per family (RI/SI/RRS/SRS/VR/TR use full only)
+    # Full-format prompting condition per family (RI/SI/RRS/SRS/VR/TR use full only)
     FULL_OP = {"NRP": "NRP-full", "ARP": "ARP-full"}
 
     def _combo_mean_f1(ds: str, metric: str = "triple") -> float | None:
@@ -128,15 +128,15 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
             op = FULL_OP.get(fam)
             if op is None:
                 continue
-            if metric == "rule" and op not in RULE_EVAL_OP_TYPES:
+            if metric == "rule" and op not in RULE_EVAL_PROMPTING_CONDITIONS:
                 continue
             rules = combo_rules.get((fam, n_rule), set())
             cell_vals: list[float] = []
-            for rule_id in rules:
+            for pattern_id in rules:
                 if metric == "triple":
-                    v = _f1_triple(op, ds, rule_id)
+                    v = _f1_triple(op, ds, pattern_id)
                 else:
-                    v = _f1_rule(op, ds, rule_id)
+                    v = _f1_rule(op, ds, pattern_id)
                 if v is not None:
                     cell_vals.append(v)
             if not cell_vals:
@@ -164,9 +164,9 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
                 continue
             rules = combo_rules.get((fam, n_rule), set())
             cell_vals: list[float] = []
-            for rule_id in rules:
-                num = _f1_triple(op, num_ds, rule_id)
-                den = _f1_triple(op, den_ds, rule_id)
+            for pattern_id in rules:
+                num = _f1_triple(op, num_ds, pattern_id)
+                den = _f1_triple(op, den_ds, pattern_id)
                 if num is not None and den is not None and den > 0:
                     cell_vals.append(min(1.0, num / den))
             if not cell_vals:
@@ -192,9 +192,9 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
             continue
         rules = combo_rules.get((fam, n_rule), set())
         cell_vals: list[float] = []
-        for rule_id in rules:
-            name_v = _f1_triple(name_op, "ns", rule_id)
-            full_v = _f1_triple(full_op, "ns", rule_id)
+        for pattern_id in rules:
+            name_v = _f1_triple(name_op, "ns", pattern_id)
+            full_v = _f1_triple(full_op, "ns", pattern_id)
             if name_v is not None and full_v is not None and full_v > 0:
                 cell_vals.append(min(1.0, name_v / full_v))
         if not cell_vals:

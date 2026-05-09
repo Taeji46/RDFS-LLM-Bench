@@ -172,9 +172,9 @@ def evaluate_one(
     }
 
     metadata = task_payload.get("metadata", {})
-    operation_type: str = str(metadata.get("operation_type", ""))
+    prompting_condition: str = str(metadata.get("prompting_condition", ""))
     rules: list[str] = metadata.get("rules", [])
-    do_rule_eval = operation_type in ARP_RULE_EVAL_OPS
+    do_rule_eval = prompting_condition in ARP_RULE_EVAL_OPS
 
     # Load response entries
     entries: list[dict] = []
@@ -282,12 +282,12 @@ def main() -> int:
     parser.add_argument("--eval-root", type=Path, default=DEFAULT_EVAL_ROOT)
     parser.add_argument("--models", type=str, default="",
                         help="Comma-separated model names to filter")
-    parser.add_argument("--operation-types", type=str, default="",
-                        help="Comma-separated operation types to filter")
-    parser.add_argument("--dataset-types", type=str, default="",
-                        help="Comma-separated dataset types to filter")
-    parser.add_argument("--rules", type=str, default="",
-                        help="Comma-separated rule ids to filter")
+    parser.add_argument("--prompting-conditions", type=str, default="",
+                        help="Comma-separated prompting conditions")
+    parser.add_argument("--dataset-variants", type=str, default="",
+                        help="Comma-separated dataset variants")
+    parser.add_argument("--patterns", type=str, default="",
+                        help="Comma-separated pattern ids")
     parser.add_argument("--mode", type=str, default="strict",
                         choices=["strict", "flex"],
                         help="Evaluation mode: strict=exact match, flex=order-based match (default: strict)")
@@ -320,9 +320,9 @@ def main() -> int:
             return 1
 
     model_filter   = set(_csv_items(args.models))
-    op_filter      = set(_csv_items(args.operation_types))
-    ds_filter      = set(_csv_items(args.dataset_types))
-    rule_filter    = set(_csv_items(args.rules))
+    op_filter      = set(_csv_items(args.prompting_conditions))
+    ds_filter      = set(_csv_items(args.dataset_variants))
+    rule_filter    = set(_csv_items(args.patterns))
 
     # Apply filters using filename fields:
     # response__{model}__{op}__{dataset}__{rule}__...

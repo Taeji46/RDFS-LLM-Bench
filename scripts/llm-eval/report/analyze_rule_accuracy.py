@@ -1,10 +1,10 @@
 """Per-rule F1 analysis using 1-rule scenarios only.
 
-Filters to n_rule == 1 and rule_info == "full".
+Filters to n_rule == 1 and rule_format == "full".
 Each rule's score is its mean f1_triple in single-rule scenarios,
 uncontaminated by other rules' difficulty in multi-rule scenarios.
 
-One sheet per dataset type (rk / ls / gs / gsc / ns / nsc / rva).
+One sheet per dataset variant (rk / ls / gs / gsc / ns / nsc / rva).
 Each sheet: rows = rules (rdfs2~rdfs11), columns = models.
 
 Reads:  data/llm-eval/reports/{mode}/scores-{mode}.csv
@@ -28,7 +28,7 @@ PROJECT_ROOT = THIS_FILE.parents[3]
 DEFAULT_REPORT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "reports"
 
 ALL_RULES = ["rdfs2", "rdfs3", "rdfs5", "rdfs7", "rdfs9", "rdfs11"]
-DATASET_TYPES = ["rk", "ls", "gs", "gsc", "ns", "nsc", "rva"]
+DATASET_VARIANTS = ["rk", "ls", "gs", "gsc", "ns", "nsc", "rva"]
 
 
 def _relpath(p: Path) -> str:
@@ -51,28 +51,28 @@ def load_scores(csv_path: Path) -> list[dict]:
 
 
 def compute(records: list[dict]) -> dict[str, dict[str, dict[str, float | None]]]:
-    """Returns {dataset_type: {model: {rule_id: mean_f1}}}.
+    """Returns {dataset_variant: {model: {pattern_id: mean_f1}}}.
 
-    Only 1-rule, rule_info==full records are used.
-    Each rule's score is the mean f1_triple across operation_types
-    (macro-average since record counts are equal across operation_types).
+    Only 1-rule, rule_format==full records are used.
+    Each rule's score is the mean f1_triple across prompting_conditions
+    (macro-average since record counts are equal across prompting_conditions).
     """
-    # (dataset_type, model, rule_id, operation_type) -> [f1 values]
+    # (dataset_variant, model, pattern_id, prompting_condition) -> [f1 values]
     fine: dict[tuple[str, str, str, str], list[float]] = defaultdict(list)
 
     for rec in records:
         if rec.get("n_rule") != "1":
             continue
-        if rec.get("rule_info") != "full":
+        if rec.get("rule_format") != "full":
             continue
         f1 = _float(rec.get("f1_triple", ""))
         if f1 is None:
             continue
-        fine[(rec["dataset_type"], rec["model"], rec["rule_id"], rec["operation_type"])].append(f1)
+        fine[(rec["dataset_variant"], rec["model"], rec["pattern_id"], rec["prompting_condition"])].append(f1)
 
     models = sorted({k[1] for k in fine})
     result: dict[str, dict[str, dict[str, float | None]]] = {}
-    for ds in DATASET_TYPES:
+    for ds in DATASET_VARIANTS:
         result[ds] = {}
         for model in models:
             result[ds][model] = {}
@@ -127,7 +127,7 @@ def _write_sheet(wb: openpyxl.Workbook, title: str, ds_data: dict[str, dict[str,
 
 def write_excel(data: dict[str, dict[str, dict[str, float | None]]], out_path: Path) -> None:
     wb = openpyxl.Workbook()
-    for i, ds in enumerate(DATASET_TYPES):
+    for i, ds in enumerate(DATASET_VARIANTS):
         _write_sheet(wb, ds, data[ds], first=(i == 0))
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -155,7 +155,7 @@ def main() -> int:
     records = load_scores(csv_path)
     data = compute(records)
 
-    for ds in DATASET_TYPES:
+    for ds in DATASET_VARIANTS:
         print(f"[{ds}]")
         for rule in ALL_RULES:
             vals = {m: data[ds][m].get(rule) for m in sorted(data[ds])}

@@ -1,10 +1,10 @@
 """F1 by dataset variant — table generator.
 
-For each (model, dataset_type), compute mean F1 averaged over:
-  - rule_info == "full" only
+For each (model, dataset_variant), compute mean F1 averaged over:
+  - rule_format == "full" only
   - NRP × {1-rule, 2-rule, 3-rule} + ARP × {1-rule, 2-rule, 3-rule} = 6 cells
-  - Each cell: mean f1_triple across all rule_ids (implication patterns) in
-               that (op_family × n_rule)
+  - Each cell: mean f1_triple across all pattern_ids (implication patterns) in
+               that (presented_rule_type × n_rule)
   - Final: mean of the 6 cells
 
 Reads:  data/llm-eval/reports/{mode}/scores-{mode}.csv
@@ -73,16 +73,16 @@ def load_scores(csv_path: Path) -> list[dict]:
 
 def compute(records: list[dict]) -> dict[str, dict[str, float | None]]:
     """Returns {dataset: {model: mean_f1_over_6_cells}}."""
-    # cell-level: (model, ds, family, n_rule) -> [f1 values across rule_ids]
+    # cell-level: (model, ds, family, n_rule) -> [f1 values across pattern_ids]
     cells: dict[tuple[str, str, str, str], list[float]] = defaultdict(list)
 
     for rec in records:
-        if rec.get("rule_info") != "full":
+        if rec.get("rule_format") != "full":
             continue
         f1 = _float(rec.get("f1_triple", ""))
         if f1 is None:
             continue
-        op = rec.get("operation_type", "")
+        op = rec.get("prompting_condition", "")
         if "-" not in op:
             continue
         family = op.split("-", 1)[0]  # NRP or ARP
@@ -91,7 +91,7 @@ def compute(records: list[dict]) -> dict[str, dict[str, float | None]]:
         n_rule = rec.get("n_rule", "")
         if n_rule not in N_RULES:
             continue
-        cells[(rec["model"], rec["dataset_type"], family, n_rule)].append(f1)
+        cells[(rec["model"], rec["dataset_variant"], family, n_rule)].append(f1)
 
     # First average within each cell (across implication patterns)
     cell_means: dict[tuple[str, str, str, str], float] = {

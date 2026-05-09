@@ -8,6 +8,8 @@ A Benchmark for Evaluating RDF Schema Inference in LLMs.
 
 Japanese version: [README.ja.md](README.ja.md)
 
+> **Note.** This project's code and corresponding Zenodo deposit are at **v3.0.0+**. Earlier Zenodo deposits are not compatible.
+
 ---
 
 ## Contents
@@ -83,7 +85,7 @@ Each PRT is combined with one of three rule formats:
 | Name only | `-name` | Rule name only |
 | Definition only | `-def` | Rule definition only |
 
-The combination of PRT and Rule Format gives 6 prompt conditions, encoded as `{PRT}-{rule_format}` in CLI arguments, file paths, and the `operation_type` JSON field:
+The combination of PRT and Rule Format gives 6 prompt conditions, encoded as `{PRT}-{rule_format}` in CLI arguments, file paths, and the `prompting_condition` JSON field:
 `NRP-full`, `NRP-name`, `NRP-def`, `ARP-full`, `ARP-name`, `ARP-def`.
 
 ---
@@ -124,23 +126,23 @@ data/
   llm-eval/
     tasks/
       zeroshot/
-        {operation_type}/{dataset_type}/{n-rule}/
+        {prompting_condition}/{dataset_variant}/{n-rule}/
                         task__{op}__{type}__{rule}__n{N}__...json
     requests/
       openai-batch/
-        {model-slug}/{operation_type}/{dataset_type}/{n-rule}/
+        {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
                         batch__{model-slug}__{op}__{type}__{rule}__n{N}__...jsonl
       sequential/
-        {model-slug}/{operation_type}/{dataset_type}/{n-rule}/
+        {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
                         seq__{model-slug}__{op}__{type}__{rule}__n{N}__...jsonl
     responses/
       openai-batch/
-        {model-slug}/{operation_type}/{dataset_type}/{n-rule}/
+        {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
                         response__{model-slug}__{op}__{type}__{rule}__n{N}__...
                           __batch_{batch-id}__{YYYYMMDDHHMMSS}.jsonl
     eval/
       {strict,flex}/
-        {response_type}/{model}/{operation_type}/{dataset_type}/{n-rule}/
+        {response_type}/{model}/{prompting_condition}/{dataset_variant}/{n-rule}/
                         eval-{mode}__{model}__{op}__{type}__{rule}__n{N}__...jsonl
     reports/
       {strict,flex}/
@@ -168,7 +170,7 @@ mkdir -p data/llm-eval
 cd data/llm-eval && unzip /path/to/tasks.zip && cd -
 ```
 
-This populates `data/llm-eval/tasks/zeroshot/{operation_type}/{dataset_type}/{n-rule}/task__*.json`.
+This populates `data/llm-eval/tasks/zeroshot/{prompting_condition}/{dataset_variant}/{n-rule}/task__*.json`.
 
 ### 3. Continue with the evaluation pipeline
 
@@ -240,22 +242,22 @@ python scripts/llm-eval/tasks/build_zeroshot_tasks.py
 
 # Filtered example
 python scripts/llm-eval/tasks/build_zeroshot_tasks.py \
-  --dataset-types rva,gs \
-  --operation-types NRP-full,ARP-full \
-  --rules rdfs2,rdfs9
+  --dataset-variants rva,gs \
+  --prompting-conditions NRP-full,ARP-full \
+  --patterns rdfs2,rdfs9
 ```
 
 | Argument | Default | Description |
 |---|---|---|
-| `--dataset-types` | all | Comma-separated dataset families (e.g. `rva,gs`) |
-| `--operation-types` | all 6 | Comma-separated operation types (e.g. `NRP-full,ARP-name`) |
-| `--rules` | all | Comma-separated rule ids (e.g. `rdfs2,rdfs2_3`) |
+| `--dataset-variants` | all | Comma-separated dataset variants (e.g. `rva,gs`) |
+| `--prompting-conditions` | all 6 | Comma-separated prompting conditions (e.g. `NRP-full,ARP-name`) |
+| `--patterns` | all | Comma-separated pattern ids (e.g. `rdfs2,rdfs2_3`) |
 | `--entry-limit` | 0 (all) | Debug: cap entries per dataset file |
 | `--max-files` | 0 (all) | Debug: process only first N dataset files |
 | `--overwrite` | skip existing | Overwrite existing task files instead of skipping them |
 | `--verbose` | — | Print each saved file path (default: summary only) |
 
-Output: `data/llm-eval/tasks/zeroshot/{operation_type}/{dataset_type}/{n-rule}/task__*.json`
+Output: `data/llm-eval/tasks/zeroshot/{prompting_condition}/{dataset_variant}/{n-rule}/task__*.json`
 
 ### 6. Continue with the evaluation pipeline
 
@@ -295,8 +297,8 @@ Supported `runner` values:
 ```bash
 python scripts/llm-eval/adapters/to_openai_batch.py \
   --model gpt-4o-mini-2024-07-18 \
-  --operation-types NRP-full \
-  --dataset-types rva
+  --prompting-conditions NRP-full \
+  --dataset-variants rva
 ```
 
 **Sequential (OpenAI-compatible / Ollama):**
@@ -304,8 +306,8 @@ python scripts/llm-eval/adapters/to_openai_batch.py \
 ```bash
 python scripts/llm-eval/adapters/to_sequential.py \
   --model llama3.1-8b \
-  --operation-types NRP-full \
-  --dataset-types rva
+  --prompting-conditions NRP-full \
+  --dataset-variants rva
 ```
 
 Available models are defined in `scripts/llm-eval/model-config.json`. The `--model` argument takes the slug (key in the config); the actual API model name is resolved internally.
@@ -423,7 +425,7 @@ If `--queue` is omitted, available queue names are listed. All three runners sha
 | `--verbose` | — | Print skipped file paths |
 | `--fallback-root` | skip | (sequential only) Save to response root directly when filename cannot be parsed |
 
-Output: `data/llm-eval/responses/sequential/{slug}/{operation_type}/{dataset_type}/{n-rule}/response__*.jsonl`
+Output: `data/llm-eval/responses/sequential/{slug}/{prompting_condition}/{dataset_variant}/{n-rule}/response__*.jsonl`
 
 ### Step 4 — Evaluate outputs
 
@@ -462,9 +464,9 @@ python scripts/llm-eval/eval/evaluate_outputs.py --mode strict --response-type o
 | `--mode` | `strict` | Evaluation mode: `strict` or `flex` |
 | `--response-type` | all | Sub-directory under `responses/` to scan (e.g. `openai-batch`, `sequential`). Omit to evaluate all. |
 | `--models` | all | Comma-separated model slugs to filter |
-| `--operation-types` | all | Comma-separated operation types to filter (e.g. `NRP-full,ARP-name`) |
-| `--dataset-types` | all | Comma-separated dataset types to filter |
-| `--rules` | all | Comma-separated rule ids to filter |
+| `--prompting-conditions` | all | Comma-separated prompting conditions to filter (e.g. `NRP-full,ARP-name`) |
+| `--dataset-variants` | all | Comma-separated dataset variants to filter |
+| `--patterns` | all | Comma-separated pattern ids to filter |
 | `--overwrite` | skip existing | Overwrite existing eval files |
 | `--verbose` | — | Print per-file details |
 
@@ -588,13 +590,13 @@ python scripts/llm-eval/report/analyze_scaling.py --mode strict
 python scripts/llm-eval/report/analyze_scaling.py --mode flex
 ```
 
-Output: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx`. The workbook contains one sheet per (Rule Format × dataset_type) combination, with the following sheet name pattern:
+Output: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx`. The workbook contains one sheet per (Rule Format × dataset_variant) combination, with the following sheet name pattern:
 
 | Rule Format | Sheet name | Examples |
 |---|---|---|
-| `full` | `<dataset_type>` | `rk`, `ls`, `ns`, ... |
-| `def` | `<dataset_type>-def` | `rk-def`, `ls-def`, ... |
-| `name` | `<dataset_type>-name` | `rk-name`, `ls-name`, ... |
+| `full` | `<dataset_variant>` | `rk`, `ls`, `ns`, ... |
+| `def` | `<dataset_variant>-def` | `rk-def`, `ls-def`, ... |
+| `name` | `<dataset_variant>-name` | `rk-name`, `ls-name`, ... |
 
 ### (Optional) Rule-level analysis
 
@@ -654,9 +656,9 @@ Premise / expected-output pairs ready for prompt construction.
 ```json
 {
   "metadata": {
-    "rule_id": "rdfs2",
+    "pattern_id": "rdfs2",
     "rules": ["rdfs2"],
-    "dataset_type": "rva",
+    "dataset_variant": "rva",
     "fetch_uid": "v-a1b2c3d4",
     "build_uid": "b-e5f6g7h8"
   },
@@ -676,9 +678,9 @@ Per-prompt-condition task file with rendered prompts.
 ```json
 {
   "metadata": {
-    "operation_type": "NRP-full",
-    "dataset_type": "rva",
-    "rule_id": "rdfs2",
+    "prompting_condition": "NRP-full",
+    "dataset_variant": "rva",
+    "pattern_id": "rdfs2",
     "rules": ["rdfs2"]
   },
   "tasks": [

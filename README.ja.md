@@ -8,6 +8,8 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 
 英語版: [README.md](README.md)
 
+> **注意。** 本プロジェクトのコードおよび対応する Zenodo 公開版は **v3.0.0 以降**です。旧 Zenodo 公開版とは互換性がありません。
+
 ---
 
 ## 目次
@@ -83,7 +85,7 @@ RDFS-LLM-Bench は LLM の RDFS 推論能力を体系的に評価するための
 | 名前のみ | `-name` | ルール名のみ |
 | 定義のみ | `-def` | 定義のみ |
 
-PRT と Rule Format を組み合わせると合計 6 通りのプロンプト条件になります。CLI 引数・ファイルパス・JSON の `operation_type` フィールドでは `{PRT}-{rule_format}` の形式で表記します:
+PRT と Rule Format を組み合わせると合計 6 通りのプロンプト条件になります。CLI 引数・ファイルパス・JSON の `prompting_condition` フィールドでは `{PRT}-{rule_format}` の形式で表記します:
 `NRP-full`, `NRP-name`, `NRP-def`, `ARP-full`, `ARP-name`, `ARP-def`。
 
 ---
@@ -124,23 +126,23 @@ data/
   llm-eval/
     tasks/
       zeroshot/
-        {operation_type}/{dataset_type}/{n-rule}/
+        {prompting_condition}/{dataset_variant}/{n-rule}/
                         task__{op}__{type}__{rule}__n{N}__...json
     requests/
       openai-batch/
-        {model-slug}/{operation_type}/{dataset_type}/{n-rule}/
+        {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
                         batch__{model-slug}__{op}__{type}__{rule}__n{N}__...jsonl
       sequential/
-        {model-slug}/{operation_type}/{dataset_type}/{n-rule}/
+        {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
                         seq__{model-slug}__{op}__{type}__{rule}__n{N}__...jsonl
     responses/
       openai-batch/
-        {model-slug}/{operation_type}/{dataset_type}/{n-rule}/
+        {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
                         response__{model-slug}__{op}__{type}__{rule}__n{N}__...
                           __batch_{batch-id}__{YYYYMMDDHHMMSS}.jsonl
     eval/
       {strict,flex}/
-        {response_type}/{model}/{operation_type}/{dataset_type}/{n-rule}/
+        {response_type}/{model}/{prompting_condition}/{dataset_variant}/{n-rule}/
                         eval-{mode}__{model}__{op}__{type}__{rule}__n{N}__...jsonl
     reports/
       {strict,flex}/
@@ -168,7 +170,7 @@ mkdir -p data/llm-eval
 cd data/llm-eval && unzip /path/to/tasks.zip && cd -
 ```
 
-展開すると `data/llm-eval/tasks/zeroshot/{operation_type}/{dataset_type}/{n-rule}/task__*.json` が並びます。
+展開すると `data/llm-eval/tasks/zeroshot/{prompting_condition}/{dataset_variant}/{n-rule}/task__*.json` が並びます。
 
 ### 3. 評価パイプラインへ進む
 
@@ -240,22 +242,22 @@ python scripts/llm-eval/tasks/build_zeroshot_tasks.py
 
 # 絞り込みの例
 python scripts/llm-eval/tasks/build_zeroshot_tasks.py \
-  --dataset-types rva,gs \
-  --operation-types NRP-full,ARP-full \
-  --rules rdfs2,rdfs9
+  --dataset-variants rva,gs \
+  --prompting-conditions NRP-full,ARP-full \
+  --patterns rdfs2,rdfs9
 ```
 
 | 引数 | デフォルト | 説明 |
 |---|---|---|
-| `--dataset-types` | 全て | カンマ区切りのデータセット系列（例: `rva,gs`）|
-| `--operation-types` | 全6種 | カンマ区切りの推論操作タイプ（例: `NRP-full,ARP-name`）|
-| `--rules` | 全て | カンマ区切りのルールID（例: `rdfs2,rdfs2_3`）|
+| `--dataset-variants` | 全て | カンマ区切りの dataset variant（例: `rva,gs`）|
+| `--prompting-conditions` | 全6種 | カンマ区切りの prompting condition（例: `NRP-full,ARP-name`）|
+| `--patterns` | 全て | カンマ区切りの pattern id（例: `rdfs2,rdfs2_3`）|
 | `--entry-limit` | 0（無制限）| デバッグ用: データセットファイルあたりのエントリ上限 |
 | `--max-files` | 0（無制限）| デバッグ用: 処理するファイル数の上限 |
 | `--overwrite` | スキップ | 既存タスクファイルをスキップせず上書きする |
 | `--verbose` | — | 保存ファイルのパスを逐次出力する（デフォルト: サマリーのみ）|
 
-出力先: `data/llm-eval/tasks/zeroshot/{operation_type}/{dataset_type}/{n-rule}/task__*.json`
+出力先: `data/llm-eval/tasks/zeroshot/{prompting_condition}/{dataset_variant}/{n-rule}/task__*.json`
 
 ### 6. 評価パイプラインへ進む
 
@@ -295,8 +297,8 @@ python scripts/llm-eval/tasks/build_zeroshot_tasks.py \
 ```bash
 python scripts/llm-eval/adapters/to_openai_batch.py \
   --model gpt-4o-mini-2024-07-18 \
-  --operation-types NRP-full \
-  --dataset-types rva
+  --prompting-conditions NRP-full \
+  --dataset-variants rva
 ```
 
 **逐次実行（OpenAI互換 / Ollama）用:**
@@ -304,8 +306,8 @@ python scripts/llm-eval/adapters/to_openai_batch.py \
 ```bash
 python scripts/llm-eval/adapters/to_sequential.py \
   --model llama3.1-8b \
-  --operation-types NRP-full \
-  --dataset-types rva
+  --prompting-conditions NRP-full \
+  --dataset-variants rva
 ```
 
 使用可能なモデルは `scripts/llm-eval/model-config.json` で定義します。`--model` にはスラグ（config のキー）を指定し、実際の API モデル名はスクリプト内部で解決されます。
@@ -423,7 +425,7 @@ python scripts/llm-eval/run/run_sequential_ollama.py --queue <queue-name> --olla
 | `--verbose` | — | スキップ時もパスを出力 |
 | `--fallback-root` | スキップ | （sequential のみ）ファイル名が解析できない場合に response ルート直下に保存 |
 
-出力先: `data/llm-eval/responses/sequential/{slug}/{operation_type}/{dataset_type}/{n-rule}/response__*.jsonl`
+出力先: `data/llm-eval/responses/sequential/{slug}/{prompting_condition}/{dataset_variant}/{n-rule}/response__*.jsonl`
 
 ### ステップ 4 — 出力の評価
 
@@ -462,9 +464,9 @@ python scripts/llm-eval/eval/evaluate_outputs.py --mode strict --response-type o
 | `--mode` | `strict` | 評価モード: `strict` または `flex` |
 | `--response-type` | 全て | `responses/` 以下のサブディレクトリ（例: `openai-batch`, `sequential`）。省略時は全種別を評価 |
 | `--models` | 全て | 絞り込むモデルスラグ（カンマ区切り）|
-| `--operation-types` | 全て | 絞り込む推論操作タイプ（カンマ区切り）|
-| `--dataset-types` | 全て | 絞り込むデータセット種別（カンマ区切り）|
-| `--rules` | 全て | 絞り込むルールID（カンマ区切り）|
+| `--prompting-conditions` | 全て | 絞り込む prompting condition（カンマ区切り）|
+| `--dataset-variants` | 全て | 絞り込む dataset variant（カンマ区切り）|
+| `--patterns` | 全て | 絞り込む pattern id（カンマ区切り）|
 | `--overwrite` | スキップ | 既存の評価ファイルを上書きする |
 | `--verbose` | — | ファイルごとの詳細を出力する |
 
@@ -588,13 +590,13 @@ python scripts/llm-eval/report/analyze_scaling.py --mode strict
 python scripts/llm-eval/report/analyze_scaling.py --mode flex
 ```
 
-出力先: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx`。各 (Rule Format × dataset_type) の組み合わせごとに 1 シートが生成されます。シート名の形式:
+出力先: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx`。各 (Rule Format × dataset_variant) の組み合わせごとに 1 シートが生成されます。シート名の形式:
 
 | Rule Format | シート名 | 例 |
 |---|---|---|
-| `full` | `<dataset_type>` | `rk`, `ls`, `ns`, ... |
-| `def` | `<dataset_type>-def` | `rk-def`, `ls-def`, ... |
-| `name` | `<dataset_type>-name` | `rk-name`, `ls-name`, ... |
+| `full` | `<dataset_variant>` | `rk`, `ls`, `ns`, ... |
+| `def` | `<dataset_variant>-def` | `rk-def`, `ls-def`, ... |
+| `name` | `<dataset_variant>-name` | `rk-name`, `ls-name`, ... |
 
 ### （任意）ルールレベル分析
 
@@ -654,9 +656,9 @@ python scripts/llm-eval/report/f1_by_dataset_table.py --mode flex
 ```json
 {
   "metadata": {
-    "rule_id": "rdfs2",
+    "pattern_id": "rdfs2",
     "rules": ["rdfs2"],
-    "dataset_type": "rva",
+    "dataset_variant": "rva",
     "fetch_uid": "v-a1b2c3d4",
     "build_uid": "b-e5f6g7h8"
   },
@@ -676,9 +678,9 @@ python scripts/llm-eval/report/f1_by_dataset_table.py --mode flex
 ```json
 {
   "metadata": {
-    "operation_type": "NRP-full",
-    "dataset_type": "rva",
-    "rule_id": "rdfs2",
+    "prompting_condition": "NRP-full",
+    "dataset_variant": "rva",
+    "pattern_id": "rdfs2",
     "rules": ["rdfs2"]
   },
   "tasks": [

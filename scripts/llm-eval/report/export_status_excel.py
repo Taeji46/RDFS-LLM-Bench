@@ -34,12 +34,12 @@ DEFAULT_TASK_ROOT     = PROJECT_ROOT / "data" / "llm-eval" / "tasks" / "zeroshot
 DEFAULT_RESPONSE_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "responses"
 DEFAULT_REPORT_ROOT   = PROJECT_ROOT / "data" / "llm-eval" / "reports"
 
-OPERATION_TYPE_ORDER = [
+PROMPTING_CONDITION_ORDER = [
     "NRP-full", "NRP-name", "NRP-def",
     "ARP-full", "ARP-name", "ARP-def",
 ]
 
-DATASET_TYPE_ORDER = ["rk", "ls", "gs", "gsc", "rva", "ns", "nsc"]
+DATASET_VARIANT_ORDER = ["rk", "ls", "gs", "gsc", "rva", "ns", "nsc"]
 
 COMPOSITE_FULL_OPS = {"NRP-full", "ARP-full"}
 
@@ -53,25 +53,25 @@ def _relpath(path: Path) -> str:
         return str(path)
 
 
-def _n_rule(rule_id: str) -> int:
-    return len(re.findall(r"\d+", rule_id))
+def _n_rule(pattern_id: str) -> int:
+    return len(re.findall(r"\d+", pattern_id))
 
 
-def _rule_sort_key(rule_id: str) -> tuple:
-    nums = [int(x) for x in re.findall(r"\d+", rule_id)]
+def _rule_sort_key(pattern_id: str) -> tuple:
+    nums = [int(x) for x in re.findall(r"\d+", pattern_id)]
     return (len(nums), nums)
 
 
-def _is_composite_cell(op_type: str, rule_id: str, ds_type: str) -> bool:
+def _is_composite_cell(prompting_condition: str, pattern_id: str, ds_variant: str) -> bool:
     """Returns True if this specific cell is needed for composite metrics.
 
     - RI/SI/RRS/SRS/VR/TR use NRP-full and ARP-full on rk/ns/gs/gsc/nsc.
     - RDI uses NRP-name and ARP-name on ns (across all 1/2/3-rule combos).
     """
-    if op_type in COMPOSITE_FULL_OPS:
-        return ds_type in {"rk", "ns", "gs", "gsc", "nsc"}
-    if op_type in {"NRP-name", "ARP-name"}:
-        return ds_type == "ns"
+    if prompting_condition in COMPOSITE_FULL_OPS:
+        return ds_variant in {"rk", "ns", "gs", "gsc", "nsc"}
+    if prompting_condition in {"NRP-name", "ARP-name"}:
+        return ds_variant == "ns"
     return False
 
 
@@ -87,9 +87,9 @@ def _parse_task_stem(stem: str) -> dict | None:
     if len(fields) < 3:
         return None
     return {
-        "operation_type": fields[0],
-        "dataset_type":   fields[1],
-        "rule_id":        fields[2],
+        "prompting_condition": fields[0],
+        "dataset_variant":   fields[1],
+        "pattern_id":        fields[2],
         "uids":           _extract_uids(fields),
     }
 
@@ -102,9 +102,9 @@ def _parse_response_stem(stem: str) -> dict | None:
         return None
     return {
         "model":          fields[0],
-        "operation_type": fields[1],
-        "dataset_type":   fields[2],
-        "rule_id":        fields[3],
+        "prompting_condition": fields[1],
+        "dataset_variant":   fields[2],
+        "pattern_id":        fields[3],
         "uids":           _extract_uids(fields),
     }
 
@@ -116,25 +116,25 @@ ResponseIndex = dict[str, dict[tuple[str, str, str], set[frozenset[str]]]]
 
 
 def scan_tasks(task_root: Path) -> TaskIndex:
-    """Returns {(op_type, rule_id, dataset_type): uid_frozenset}."""
+    """Returns {(prompting_condition, pattern_id, dataset_variant): uid_frozenset}."""
     result: TaskIndex = {}
     for p in task_root.rglob("task__*.json"):
         info = _parse_task_stem(p.stem)
         if info is None:
             continue
-        key = (info["operation_type"], info["rule_id"], info["dataset_type"])
+        key = (info["prompting_condition"], info["pattern_id"], info["dataset_variant"])
         result[key] = info["uids"]
     return result
 
 
 def scan_responses(response_root: Path) -> ResponseIndex:
-    """Returns {model: {(op_type, rule_id, dataset_type): set[uid_frozenset]}}."""
+    """Returns {model: {(prompting_condition, pattern_id, dataset_variant): set[uid_frozenset]}}."""
     result: ResponseIndex = defaultdict(lambda: defaultdict(set))
     for p in response_root.rglob("response__*.jsonl"):
         info = _parse_response_stem(p.stem)
         if info is None:
             continue
-        key = (info["operation_type"], info["rule_id"], info["dataset_type"])
+        key = (info["prompting_condition"], info["pattern_id"], info["dataset_variant"])
         result[info["model"]][key].add(info["uids"])
     return result
 
@@ -180,25 +180,25 @@ def write_status_excel(
 
     possible = set(task_index.keys())
 
-    # Collect all op_types, rule_ids, dataset_types
-    all_op_types: set[str] = set()
-    all_rule_ids_by_op: dict[str, set[str]] = defaultdict(set)
-    all_ds_types: set[str] = set()
+    # Collect all prompting_conditions, pattern_ids, dataset_variants
+    all_prompting_conditions: set[str] = set()
+    all_pattern_ids_by_prompting_condition: dict[str, set[str]] = defaultdict(set)
+    all_ds_variants: set[str] = set()
 
     for op, rule, ds in possible:
-        all_op_types.add(op)
-        all_rule_ids_by_op[op].add(rule)
-        all_ds_types.add(ds)
+        all_prompting_conditions.add(op)
+        all_pattern_ids_by_prompting_condition[op].add(rule)
+        all_ds_variants.add(ds)
 
-    op_types = [op for op in OPERATION_TYPE_ORDER if op in all_op_types]
-    for op in sorted(all_op_types):
-        if op not in op_types:
-            op_types.append(op)
+    prompting_conditions = [op for op in PROMPTING_CONDITION_ORDER if op in all_prompting_conditions]
+    for op in sorted(all_prompting_conditions):
+        if op not in prompting_conditions:
+            prompting_conditions.append(op)
 
-    ds_types = [d for d in DATASET_TYPE_ORDER if d in all_ds_types]
-    for d in sorted(all_ds_types):
-        if d not in ds_types:
-            ds_types.append(d)
+    ds_variants = [d for d in DATASET_VARIANT_ORDER if d in all_ds_variants]
+    for d in sorted(all_ds_variants):
+        if d not in ds_variants:
+            ds_variants.append(d)
 
     # --- Styles ---
     col_header_fill = PatternFill("solid", fgColor="4472C4")
@@ -232,12 +232,12 @@ def write_status_excel(
 
         # Row 1: column headers
         ws.row_dimensions[1].height = 20
-        label_cell = ws.cell(row=1, column=1, value="op-type / rule-id")
+        label_cell = ws.cell(row=1, column=1, value="prompting-condition / pattern-id")
         label_cell.font = Font(bold=True, color="FFFFFF")
         label_cell.fill = col_header_fill
         label_cell.alignment = center
 
-        for col_idx, ds in enumerate(ds_types, start=2):
+        for col_idx, ds in enumerate(ds_variants, start=2):
             cell = ws.cell(row=1, column=col_idx, value=ds)
             cell.font = col_header_font
             cell.fill = col_header_fill
@@ -245,38 +245,38 @@ def write_status_excel(
 
         current_row = 2
 
-        for op_type in op_types:
-            rule_ids = sorted(all_rule_ids_by_op.get(op_type, set()), key=_rule_sort_key)
-            if not rule_ids:
+        for prompting_condition in prompting_conditions:
+            pattern_ids = sorted(all_pattern_ids_by_prompting_condition.get(prompting_condition, set()), key=_rule_sort_key)
+            if not pattern_ids:
                 continue
 
-            # op_type group header row
+            # prompting_condition group header row
             ws.row_dimensions[current_row].height = 16
             ws.merge_cells(
                 start_row=current_row, start_column=1,
-                end_row=current_row, end_column=len(ds_types) + 1,
+                end_row=current_row, end_column=len(ds_variants) + 1,
             )
-            gh = ws.cell(row=current_row, column=1, value=op_type)
+            gh = ws.cell(row=current_row, column=1, value=prompting_condition)
             gh.font = op_group_font
             gh.fill = op_group_fill
             gh.alignment = left
             current_row += 1
 
-            for rule_id in rule_ids:
+            for pattern_id in pattern_ids:
                 row_has_composite = any(
-                    _is_composite_cell(op_type, rule_id, ds) and (op_type, rule_id, ds) in possible
-                    for ds in ds_types
+                    _is_composite_cell(prompting_condition, pattern_id, ds) and (prompting_condition, pattern_id, ds) in possible
+                    for ds in ds_variants
                 )
 
                 ws.row_dimensions[current_row].height = 15
-                lc = ws.cell(row=current_row, column=1, value=rule_id)
+                lc = ws.cell(row=current_row, column=1, value=pattern_id)
                 lc.fill      = composite_fill if row_has_composite else normal_fill
                 lc.font      = label_composite_font if row_has_composite else label_normal_font
                 lc.alignment = left
 
-                for col_idx, ds in enumerate(ds_types, start=2):
-                    cell_key = (op_type, rule_id, ds)
-                    is_composite = _is_composite_cell(op_type, rule_id, ds) and cell_key in possible
+                for col_idx, ds in enumerate(ds_variants, start=2):
+                    cell_key = (prompting_condition, pattern_id, ds)
+                    is_composite = _is_composite_cell(prompting_condition, pattern_id, ds) and cell_key in possible
                     status = _cell_status(cell_key, task_index, model_responses)
 
                     cell = ws.cell(row=current_row, column=col_idx, value=status)
@@ -298,8 +298,8 @@ def write_status_excel(
                 current_row += 1
 
         # Column widths
-        ws.column_dimensions["A"].width = 20
-        for col_idx in range(2, len(ds_types) + 2):
+        ws.column_dimensions["A"].width = 34
+        for col_idx in range(2, len(ds_variants) + 2):
             ws.column_dimensions[get_column_letter(col_idx)].width = 7
 
         ws.freeze_panes = "B2"

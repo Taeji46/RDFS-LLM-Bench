@@ -1,10 +1,10 @@
 """Build zero-shot LLM-eval task files from benchmark datasets.
 
 Input:
-  data/datasets/{dataset_type}/{n-rule}/dataset__*.json
+  data/datasets/{dataset_variant}/{n-rule}/dataset__*.json
 
 Output:
-  data/llm-eval/tasks/zeroshot/{operation_type}/{dataset_type}/{n-rule}/task__*.json
+  data/llm-eval/tasks/zeroshot/{prompting_condition}/{dataset_variant}/{n-rule}/task__*.json
 """
 
 from __future__ import annotations
@@ -21,58 +21,58 @@ PROJECT_ROOT = THIS_FILE.parents[3]
 sys.path.insert(0, str(LLM_EVAL_DIR))
 
 from shared.io import read_json, write_json
-from shared.prompt_builder import build_prompt, normalize_operation_type, get_template_hash
-from shared.rule_defs import DEFAULT_SYSTEM_PROMPT, OPERATION_TYPES
+from shared.prompt_builder import build_prompt, normalize_prompting_condition, get_template_hash
+from shared.rule_defs import DEFAULT_SYSTEM_PROMPT, PROMPTING_CONDITIONS
 
 DEFAULT_DATASET_ROOT = PROJECT_ROOT / "data" / "datasets"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "tasks" / "zeroshot"
 
-# Valid operation types per rule count.
+# Valid prompting conditions per rule count.
 # NRP: necessary rule presentation — all n valid
 # ARP: all-rule presentation      — always valid
-_VALID_OPERATION_TYPES: dict[int, set[str]] = {
+_VALID_PROMPTING_CONDITIONS: dict[int, set[str]] = {
     1: {"NRP-full", "NRP-name", "NRP-def", "ARP-full", "ARP-name", "ARP-def"},
     2: {"NRP-full", "NRP-name", "NRP-def", "ARP-full", "ARP-name", "ARP-def"},
     3: {"NRP-full", "NRP-name", "NRP-def", "ARP-full", "ARP-name", "ARP-def"},
 }
 
 
-def is_valid_operation_type(operation_type: str, rule_count: int) -> bool:
-    return operation_type in _VALID_OPERATION_TYPES.get(rule_count, set())
+def is_valid_prompting_condition(prompting_condition: str, rule_count: int) -> bool:
+    return prompting_condition in _VALID_PROMPTING_CONDITIONS.get(rule_count, set())
 
 
 def _csv_items(text: str) -> list[str]:
     return [item.strip() for item in text.split(",") if item.strip()]
 
 
-def _resolve_operation_types(raw: str) -> list[str]:
+def _resolve_prompting_conditions(raw: str) -> list[str]:
     if not raw.strip():
-        return list(OPERATION_TYPES)
+        return list(PROMPTING_CONDITIONS)
 
-    operation_types: list[str] = []
+    prompting_conditions: list[str] = []
     for item in _csv_items(raw):
-        op_type = normalize_operation_type(item)
-        if op_type not in operation_types:
-            operation_types.append(op_type)
-    return operation_types
+        prompting_condition = normalize_prompting_condition(item)
+        if prompting_condition not in prompting_conditions:
+            prompting_conditions.append(prompting_condition)
+    return prompting_conditions
 
 
-def _rule_dir_from_rule(rule_id: str) -> str:
-    return f"{rule_id.count('_') + 1}-rule"
+def _rule_dir_from_rule(pattern_id: str) -> str:
+    return f"{pattern_id.count('_') + 1}-rule"
 
 
-def _available_dataset_types(dataset_root: Path) -> list[str]:
+def _available_dataset_variants(dataset_root: Path) -> list[str]:
     if not dataset_root.exists():
         return []
     return sorted(p.name for p in dataset_root.iterdir() if p.is_dir())
 
 
-def _iter_dataset_files(dataset_root: Path, dataset_types: list[str]) -> list[Path]:
+def _iter_dataset_files(dataset_root: Path, dataset_variants: list[str]) -> list[Path]:
     files: list[Path] = []
-    for dataset_type in dataset_types:
-        base = dataset_root / dataset_type
+    for dataset_variant in dataset_variants:
+        base = dataset_root / dataset_variant
         if not base.exists():
-            print(f"WARNING: dataset type directory does not exist: {base}")
+            print(f"WARNING: dataset variant directory does not exist: {base}")
             continue
         files.extend(sorted(base.rglob("dataset__*.json")))
     return files
@@ -102,8 +102,8 @@ def _required_rules(metadata: dict, dataset_path: Path) -> list[str]:
 
 def _build_tasks(
     entries: list[dict],
-    operation_type: str,
-    rule_id: str,
+    prompting_condition: str,
+    pattern_id: str,
     entry_limit: int,
 ) -> list[dict]:
     if entry_limit > 0:
@@ -119,9 +119,9 @@ def _build_tasks(
             continue
 
         prompt = build_prompt(
-            operation_type=operation_type,
+            prompting_condition=prompting_condition,
             premise_knowledge=premise_knowledge,
-            rule_id=rule_id,
+            pattern_id=pattern_id,
         )
 
         tasks.append(
@@ -147,7 +147,7 @@ def _relpath(path: Path) -> str:
 def build_zeroshot_tasks(
     dataset_path: Path,
     output_root: Path,
-    operation_types: list[str],
+    prompting_conditions: list[str],
     entry_limit: int,
     overwrite: bool,
     verbose: bool = False,
@@ -161,22 +161,22 @@ def build_zeroshot_tasks(
     if not isinstance(metadata, dict) or not isinstance(entries, list):
         raise ValueError(f"invalid dataset structure: {dataset_path}")
 
-    dataset_type = _required_str(metadata, "dataset_type", dataset_path)
-    rule_id = _required_str(metadata, "rule_id", dataset_path)
+    dataset_variant = _required_str(metadata, "dataset_variant", dataset_path)
+    pattern_id = _required_str(metadata, "pattern_id", dataset_path)
     rules = _required_rules(metadata, dataset_path)
     source_uid: str | None = metadata.get("fetch_uid") or None
     build_uid = _required_str(metadata, "build_uid", dataset_path)
-    rule_dir = _rule_dir_from_rule(rule_id)
+    rule_dir = _rule_dir_from_rule(pattern_id)
     source_dataset = _relpath(dataset_path)
 
     rule_count = len(rules)
     records: list[dict] = []
-    for operation_type in operation_types:
-        if not is_valid_operation_type(operation_type, rule_count):
+    for prompting_condition in prompting_conditions:
+        if not is_valid_prompting_condition(prompting_condition, rule_count):
             records.append({
-                "operation_type": operation_type,
-                "dataset_type": dataset_type,
-                "rule_id": rule_id,
+                "prompting_condition": prompting_condition,
+                "dataset_variant": dataset_variant,
+                "pattern_id": pattern_id,
                 "build_uid": build_uid,
                 "task_count": 0,
                 "source_dataset": source_dataset,
@@ -185,14 +185,14 @@ def build_zeroshot_tasks(
             })
             continue
 
-        tasks = _build_tasks(entries, operation_type=operation_type, rule_id=rule_id, entry_limit=entry_limit)
-        template_uid = get_template_hash(operation_type, rule_id)
+        tasks = _build_tasks(entries, prompting_condition=prompting_condition, pattern_id=pattern_id, entry_limit=entry_limit)
+        template_uid = get_template_hash(prompting_condition, pattern_id)
 
-        out_dir = output_root / operation_type / dataset_type / rule_dir
+        out_dir = output_root / prompting_condition / dataset_variant / rule_dir
         if source_uid is not None:
-            out_name = f"task__{operation_type}__{dataset_type}__{rule_id}__n{len(tasks)}__{source_uid}__{build_uid}__{template_uid}.json"
+            out_name = f"task__{prompting_condition}__{dataset_variant}__{pattern_id}__n{len(tasks)}__{source_uid}__{build_uid}__{template_uid}.json"
         else:
-            out_name = f"task__{operation_type}__{dataset_type}__{rule_id}__n{len(tasks)}__{build_uid}__{template_uid}.json"
+            out_name = f"task__{prompting_condition}__{dataset_variant}__{pattern_id}__n{len(tasks)}__{build_uid}__{template_uid}.json"
         out_path = out_dir / out_name
 
         if out_path.exists() and not overwrite:
@@ -200,9 +200,9 @@ def build_zeroshot_tasks(
                 print(f"SKIP (exists): {out_path}")
             records.append(
                 {
-                    "operation_type": operation_type,
-                    "dataset_type": dataset_type,
-                    "rule_id": rule_id,
+                    "prompting_condition": prompting_condition,
+                    "dataset_variant": dataset_variant,
+                    "pattern_id": pattern_id,
                     "build_uid": build_uid,
                     "task_count": len(tasks),
                     "source_dataset": source_dataset,
@@ -213,9 +213,9 @@ def build_zeroshot_tasks(
             continue
 
         task_metadata: dict = {
-            "operation_type": operation_type,
-            "dataset_type": dataset_type,
-            "rule_id": rule_id,
+            "prompting_condition": prompting_condition,
+            "dataset_variant": dataset_variant,
+            "pattern_id": pattern_id,
             "rules": rules,
             "rule_dir": rule_dir,
         }
@@ -235,9 +235,9 @@ def build_zeroshot_tasks(
 
         records.append(
             {
-                "operation_type": operation_type,
-                "dataset_type": dataset_type,
-                "rule_id": rule_id,
+                "prompting_condition": prompting_condition,
+                "dataset_variant": dataset_variant,
+                "pattern_id": pattern_id,
                 "build_uid": build_uid,
                 "task_count": len(tasks),
                 "source_dataset": source_dataset,
@@ -252,9 +252,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build zero-shot llm-eval task files from datasets.")
     parser.add_argument("--dataset-root", type=Path, default=DEFAULT_DATASET_ROOT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
-    parser.add_argument("--dataset-types", type=str, default="", help="Comma-separated dataset types (e.g. rk,ls,gs)")
-    parser.add_argument("--rules", type=str, default="", help="Comma-separated rule ids (e.g. rdfs2,rdfs2_3)")
-    parser.add_argument("--operation-types", type=str, default=",".join(OPERATION_TYPES), help="Comma-separated inference operation types (e.g. NRP-full,NRP-name)")
+    parser.add_argument("--dataset-variants", type=str, default="", help="Comma-separated dataset variants (e.g. rk,ls,gs)")
+    parser.add_argument("--patterns", type=str, default="", help="Comma-separated pattern ids (e.g. rdfs2,rdfs2_3)")
+    parser.add_argument("--prompting-conditions", type=str, default=",".join(PROMPTING_CONDITIONS), help="Comma-separated prompting conditions (e.g. NRP-full,NRP-name)")
     parser.add_argument("--max-files", type=int, default=0, help="Debug option: process only first N dataset files")
     parser.add_argument("--entry-limit", type=int, default=0, help="Debug option: keep only first N entries per dataset")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing zero-shot task files")
@@ -264,15 +264,15 @@ def main() -> int:
     dataset_root = args.dataset_root.resolve()
     output_root = args.output_root.resolve()
 
-    dataset_types = _csv_items(args.dataset_types) or _available_dataset_types(dataset_root)
-    if not dataset_types:
-        print(f"No dataset types found under: {dataset_root}")
+    dataset_variants = _csv_items(args.dataset_variants) or _available_dataset_variants(dataset_root)
+    if not dataset_variants:
+        print(f"No dataset variants found under: {dataset_root}")
         return 1
 
-    operation_types = _resolve_operation_types(args.operation_types)
-    rule_filter = set(_csv_items(args.rules))
+    prompting_conditions = _resolve_prompting_conditions(args.prompting_conditions)
+    rule_filter = set(_csv_items(args.patterns))
 
-    dataset_files = _iter_dataset_files(dataset_root, dataset_types)
+    dataset_files = _iter_dataset_files(dataset_root, dataset_variants)
     if rule_filter:
         filtered: list[Path] = []
         for path in dataset_files:
@@ -280,8 +280,8 @@ def main() -> int:
             metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
             if not isinstance(metadata, dict):
                 continue
-            rule_id = str(metadata.get("rule_id", "")).strip()
-            if rule_id and rule_id in rule_filter:
+            pattern_id = str(metadata.get("pattern_id", "")).strip()
+            if pattern_id and pattern_id in rule_filter:
                 filtered.append(path)
         dataset_files = filtered
 
@@ -294,8 +294,8 @@ def main() -> int:
 
     total = len(dataset_files)
     print(f"Dataset files    : {total}")
-    print(f"Dataset types    : {dataset_types}")
-    print(f"Operation types  : {operation_types}")
+    print(f"Dataset variants  : {dataset_variants}")
+    print(f"Prompting conditions: {prompting_conditions}")
     print("-" * 60)
 
     total_task_files = 0
@@ -305,7 +305,7 @@ def main() -> int:
         records = build_zeroshot_tasks(
             dataset_path=dataset_path,
             output_root=output_root,
-            operation_types=operation_types,
+            prompting_conditions=prompting_conditions,
             entry_limit=args.entry_limit,
             overwrite=args.overwrite,
             verbose=args.verbose,
@@ -319,7 +319,7 @@ def main() -> int:
 
         payload = read_json(dataset_path)
         meta = payload.get("metadata", {}) if isinstance(payload, dict) else {}
-        label = f"{meta.get('dataset_type', '?')}/{meta.get('rule_id', '?')}"
+        label = f"{meta.get('dataset_variant', '?')}/{meta.get('pattern_id', '?')}"
         parts = [f"{len(written)} written"]
         if skipped_exists:
             parts.append(f"{len(skipped_exists)} exists")

@@ -3,27 +3,27 @@
 Level naming convention:
   Operation : NRP (Necessary Rule Presentation) — nrps internally for n=1, nrpm for n≥2
             | ARP (All-Rule Presentation)
-  Rule info : full (name+def) | name (name only) | def (definition only)
-  Format    : {operation}-{rule_info}  e.g. NRP-full, NRP-name, ARP-def
+  Rule format : full (name+def) | name (name only) | def (definition only)
+  Format    : {operation}-{rule_format}  e.g. NRP-full, NRP-name, ARP-def
 """
 
 from __future__ import annotations
 
 import re
 
-from shared.rule_defs import OPERATION_TYPE_ALIASES, RULE_DEFINITIONS, RULE_TEXT_BY_RULE_ID
+from shared.rule_defs import PROMPTING_CONDITION_ALIASES, RULE_DEFINITIONS, RULE_TEXT_BY_RULE_ID
 
 
-def normalize_operation_type(operation_type: str) -> str:
-    key = operation_type.strip().lower()
-    if key not in OPERATION_TYPE_ALIASES:
-        raise ValueError(f"Unknown operation type: {operation_type}")
-    return OPERATION_TYPE_ALIASES[key]
+def normalize_prompting_condition(prompting_condition: str) -> str:
+    key = prompting_condition.strip().lower()
+    if key not in PROMPTING_CONDITION_ALIASES:
+        raise ValueError(f"Unknown prompting condition: {prompting_condition}")
+    return PROMPTING_CONDITION_ALIASES[key]
 
 
-def extract_rule_keys(rule_id: str) -> list[str]:
+def extract_rule_keys(pattern_id: str) -> list[str]:
     """Convert rdfs2_3_7 -> [rdfs2, rdfs3, rdfs7]."""
-    match = re.fullmatch(r"rdfs(\d+(?:_\d+)*)", rule_id.strip())
+    match = re.fullmatch(r"rdfs(\d+(?:_\d+)*)", pattern_id.strip())
     if not match:
         return []
 
@@ -31,72 +31,72 @@ def extract_rule_keys(rule_id: str) -> list[str]:
     return [f"rdfs{n}" for n in nums if f"rdfs{n}" in RULE_DEFINITIONS]
 
 
-def build_prompt(operation_type: str, premise_knowledge: str, rule_id: str) -> str:
+def build_prompt(prompting_condition: str, premise_knowledge: str, pattern_id: str) -> str:
     """Build an LLM input prompt from task fields."""
-    op_type = normalize_operation_type(operation_type)
-    rule_keys = extract_rule_keys(rule_id)
+    prompting_condition = normalize_prompting_condition(prompting_condition)
+    rule_keys = extract_rule_keys(pattern_id)
 
     # ── NRP (Necessary Rule Presentation) ────────────────────────
-    if op_type == "NRP-full":
+    if prompting_condition == "NRP-full":
         if len(rule_keys) == 1:
-            rule_text = RULE_TEXT_BY_RULE_ID.get(rule_id.strip())
+            rule_text = RULE_TEXT_BY_RULE_ID.get(pattern_id.strip())
             if not rule_text:
-                raise ValueError(f"NRP-full (n=1) requires known rule_id mapping, got: {rule_id}")
-            return _build_prompt_nrps_full(rule_id, rule_text, premise_knowledge)
+                raise ValueError(f"NRP-full (n=1) requires known pattern_id mapping, got: {pattern_id}")
+            return _build_prompt_nrps_full(pattern_id, rule_text, premise_knowledge)
         else:
-            _require_rule_keys(rule_id, rule_keys)
+            _require_rule_keys(pattern_id, rule_keys)
             return _build_prompt_nrpm_full(premise_knowledge, rule_keys)
 
-    if op_type == "NRP-name":
-        _require_rule_keys(rule_id, rule_keys)
+    if prompting_condition == "NRP-name":
+        _require_rule_keys(pattern_id, rule_keys)
         if len(rule_keys) == 1:
             return _build_prompt_nrps_name(premise_knowledge, rule_keys)
         else:
             return _build_prompt_nrpm_name(premise_knowledge, rule_keys)
 
-    if op_type == "NRP-def":
+    if prompting_condition == "NRP-def":
         if len(rule_keys) == 1:
-            rule_text = RULE_TEXT_BY_RULE_ID.get(rule_id.strip())
+            rule_text = RULE_TEXT_BY_RULE_ID.get(pattern_id.strip())
             if not rule_text:
-                raise ValueError(f"NRP-def (n=1) requires known rule_id mapping, got: {rule_id}")
+                raise ValueError(f"NRP-def (n=1) requires known pattern_id mapping, got: {pattern_id}")
             return _build_prompt_nrps_def(rule_text, premise_knowledge)
         else:
-            _require_rule_keys(rule_id, rule_keys)
+            _require_rule_keys(pattern_id, rule_keys)
             return _build_prompt_nrpm_def(premise_knowledge, rule_keys)
 
     # ── ARP (All-Rule Presentation) ───────────────────────────────
-    if op_type == "ARP-full":
+    if prompting_condition == "ARP-full":
         return _build_prompt_arp_full(premise_knowledge)
 
-    if op_type == "ARP-name":
+    if prompting_condition == "ARP-name":
         return _build_prompt_arp_name(premise_knowledge)
 
-    if op_type == "ARP-def":
+    if prompting_condition == "ARP-def":
         return _build_prompt_arp_def(premise_knowledge)
 
-    raise ValueError(f"Unsupported operation type: {operation_type}")
+    raise ValueError(f"Unsupported prompting condition: {prompting_condition}")
 
 
-def get_template_hash(operation_type: str, rule_id: str = "") -> str:
-    """Return a short content hash of the prompt template for operation_type.
+def get_template_hash(prompting_condition: str, pattern_id: str = "") -> str:
+    """Return a short content hash of the prompt template for prompting_condition.
 
     Calls each internal template builder with empty placeholder values so the
     hash reflects only the template structure (surrounding instruction text),
     not any rule definitions or premise knowledge content.
 
-    For NRP operations, rule_id is used to determine n (single vs multi),
+    For NRP operations, pattern_id is used to determine n (single vs multi),
     since nrps (n=1) and nrpm (n≥2) use different template structures.
 
     Returns a string like "t-1a2b3c4d".
     """
     import hashlib
     from shared.rule_defs import DEFAULT_SYSTEM_PROMPT
-    op = normalize_operation_type(operation_type)
+    op = normalize_prompting_condition(prompting_condition)
 
     _p = ""   # empty premise_knowledge
     _t = ""   # empty rule_text
     _ks: list[str] = []  # empty rule_keys
-    n = len(extract_rule_keys(rule_id)) if rule_id else 0
+    n = len(extract_rule_keys(pattern_id)) if pattern_id else 0
 
     if op == "NRP-full":
         user_prompt = _build_prompt_nrps_full("", _t, _p) if n == 1 else _build_prompt_nrpm_full(_p, _ks)
@@ -111,18 +111,18 @@ def get_template_hash(operation_type: str, rule_id: str = "") -> str:
     elif op == "ARP-def":
         user_prompt = _build_prompt_arp_def(_p)
     else:
-        raise ValueError(f"Unsupported operation type: {operation_type}")
+        raise ValueError(f"Unsupported prompting condition: {prompting_condition}")
 
-    # Include op in fingerprint so that operation types whose builders collapse
+    # Include op in fingerprint so that prompting conditions whose builders collapse
     # to the same string with empty inputs (e.g. NRP-full vs NRP-def) still
-    # receive distinct hashes, while all rule_ids within the same op_type share one.
+    # receive distinct hashes, while all pattern_ids within the same prompting_condition share one.
     fingerprint = DEFAULT_SYSTEM_PROMPT + "\n---\n" + op + "\n---\n" + user_prompt
     return "t-" + hashlib.sha256(fingerprint.encode()).hexdigest()[:8]
 
 
-def _require_rule_keys(rule_id: str, rule_keys: list[str]) -> None:
+def _require_rule_keys(pattern_id: str, rule_keys: list[str]) -> None:
     if not rule_keys:
-        raise ValueError(f"Could not infer rule keys from rule_id: {rule_id}")
+        raise ValueError(f"Could not infer rule keys from pattern_id: {pattern_id}")
 
 
 _NOTE_PLACEHOLDERS = (
@@ -166,11 +166,11 @@ _OUTPUT_MULTI = "Output all triples that can be derived from these rules and do 
 
 # ── NRP single (n=1) ─────────────────────────────────────────────
 
-def _build_prompt_nrps_full(rule_id: str, rule_text: str, premise_knowledge: str) -> str:
+def _build_prompt_nrps_full(pattern_id: str, rule_text: str, premise_knowledge: str) -> str:
     """NRP-full n=1: rule name + definition."""
     return (
         _HEADER_SINGLE
-        + f"Rule:\n{rule_id}: {rule_text}\n"
+        + f"Rule:\n{pattern_id}: {rule_text}\n"
         + f"Premise Knowledge: {premise_knowledge}\n"
         + _NOTE_PLACEHOLDERS
         + _INFER_SINGLE

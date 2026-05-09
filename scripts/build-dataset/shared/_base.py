@@ -598,7 +598,7 @@ def load_benchmark_sample(rule: str) -> tuple[list[dict], dict, str]:
 def save_dataset(
     entries: list[dict],
     rule: str,
-    dataset_type: str,
+    dataset_variant: str,
     fetch_uid: str | None = None,
     fetched_at: str | None = None,
     source_filename: str | None = None,
@@ -621,14 +621,14 @@ def save_dataset(
     if build_date is None:
         build_date = _date.today().strftime("%Y%m%d")
     if output_dir is None:
-        output_dir = os.path.join(DATASETS_DIR, dataset_type, _rule_to_nrule_dir(rule))
+        output_dir = os.path.join(DATASETS_DIR, dataset_variant, _rule_to_nrule_dir(rule))
 
     build_uid = "b-" + uuid.uuid4().hex[:8]
 
     metadata: dict = {
-        "rule_id": rule,
+        "pattern_id": rule,
         "rules": expand_rule_ids(rule),
-        "dataset_type": dataset_type,
+        "dataset_variant": dataset_variant,
     }
     if fetch_uid is not None:
         metadata["fetch_uid"] = fetch_uid
@@ -644,9 +644,9 @@ def save_dataset(
 
     os.makedirs(output_dir, exist_ok=True)
     if fetch_uid is not None:
-        filename = f"dataset__{dataset_type}__{rule}__n{len(entries)}__{fetch_uid}__{build_uid}.json"
+        filename = f"dataset__{dataset_variant}__{rule}__n{len(entries)}__{fetch_uid}__{build_uid}.json"
     else:
-        filename = f"dataset__{dataset_type}__{rule}__n{len(entries)}__{build_uid}.json"
+        filename = f"dataset__{dataset_variant}__{rule}__n{len(entries)}__{build_uid}.json"
     output_path = os.path.join(output_dir, filename)
 
     with open(output_path, "w", encoding="utf-8") as f:

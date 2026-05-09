@@ -27,6 +27,8 @@ scripts/llm-eval/sampling/
 # Zenodo upload artifacts
 zenodo-upload/
 zenodo-upload-v2/
+zenodo-upload-v2-0-2/
+zenodo-upload-v3/
 
 # Datasets and eval data (published via Zenodo)
 data/lod-samples/

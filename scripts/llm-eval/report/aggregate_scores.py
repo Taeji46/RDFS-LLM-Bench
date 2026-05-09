@@ -9,7 +9,7 @@ and writes one flat CSV:
   data/llm-eval/reports/scores.csv
 
 Columns:
-  model, operation_type, dataset_type, rule_id, n_rule,
+  model, prompting_condition, dataset_variant, pattern_id, n_rule,
   n_total, n_correct, accuracy,
   precision_triple, recall_triple, f1_triple,
   [precision_rule, recall_rule, f1_rule]  -- only for ARP-full/ARP-name
@@ -45,8 +45,8 @@ def _csv_items(text: str) -> list[str]:
     return [s.strip() for s in text.split(",") if s.strip()]
 
 
-def _expand_rules(rule_id: str) -> list[str]:
-    """Expand composite rule_id into constituent rules.
+def _expand_rules(pattern_id: str) -> list[str]:
+    """Expand composite pattern_id into constituent rules.
 
     Examples:
       "rdfs2"    -> ["rdfs2"]
@@ -54,9 +54,9 @@ def _expand_rules(rule_id: str) -> list[str]:
       "rdfs9_11" -> ["rdfs9", "rdfs11"]
     """
     import re
-    m = re.match(r'^(rdfs)(\d+)((?:_\d+)*)$', rule_id)
+    m = re.match(r'^(rdfs)(\d+)((?:_\d+)*)$', pattern_id)
     if not m:
-        return [rule_id]
+        return [pattern_id]
     prefix, first, rest = m.group(1), m.group(2), m.group(3)
     rules = [f"{prefix}{first}"]
     for num in rest.lstrip("_").split("_"):
@@ -68,7 +68,7 @@ def _expand_rules(rule_id: str) -> list[str]:
 def _parse_eval_filename(stem: str) -> dict | None:
     """Parse eval-{mode}__{model}__{op}__{dataset}__{rule}__n{N}__... stem.
 
-    Returns dict with model, operation_type, dataset_type, rule_id, rules, n_rule,
+    Returns dict with model, prompting_condition, dataset_variant, pattern_id, rules, n_rule,
     or None if unparseable.
     """
     import re as _re
@@ -80,21 +80,21 @@ def _parse_eval_filename(stem: str) -> dict | None:
     if len(fields) < 4:
         return None
     model          = fields[0]
-    operation_type = fields[1]
-    dataset_type   = fields[2]
-    rule_id        = fields[3]
-    rules          = _expand_rules(rule_id)
+    prompting_condition = fields[1]
+    dataset_variant   = fields[2]
+    pattern_id        = fields[3]
+    rules          = _expand_rules(pattern_id)
     n_rule         = len(rules)
-    op_parts       = operation_type.split("-", 1)
-    op_family      = op_parts[0] if len(op_parts) == 2 else operation_type
-    rule_info      = op_parts[1] if len(op_parts) == 2 else ""
+    op_parts       = prompting_condition.split("-", 1)
+    presented_rule_type      = op_parts[0] if len(op_parts) == 2 else prompting_condition
+    rule_format      = op_parts[1] if len(op_parts) == 2 else ""
     return {
         "model":            model,
-        "operation_type":   operation_type,
-        "operation_family": op_family,
-        "rule_info":        rule_info,
-        "dataset_type":     dataset_type,
-        "rule_id":          rule_id,
+        "prompting_condition":   prompting_condition,
+        "presented_rule_type": presented_rule_type,
+        "rule_format":        rule_format,
+        "dataset_variant":     dataset_variant,
+        "pattern_id":          pattern_id,
         "rules":            ",".join(rules),
         "n_rule":           n_rule,
     }
@@ -139,8 +139,8 @@ def aggregate_file(eval_path: Path) -> dict | None:
 
 
 FIELDNAMES = [
-    "model", "operation_type", "operation_family", "rule_info",
-    "dataset_type", "rule_id", "rules", "n_rule",
+    "model", "prompting_condition", "presented_rule_type", "rule_format",
+    "dataset_variant", "pattern_id", "rules", "n_rule",
     "n_total", "n_correct", "accuracy",
     "precision_triple", "recall_triple", "f1_triple",
     "precision_rule", "recall_rule", "f1_rule",
@@ -160,9 +160,9 @@ def main() -> int:
                         help="Comma-separated response types to include (default: all)")
     parser.add_argument("--models", type=str, default="",
                         help="Comma-separated model names to filter")
-    parser.add_argument("--operation-types", type=str, default="")
-    parser.add_argument("--dataset-types", type=str, default="")
-    parser.add_argument("--rules", type=str, default="")
+    parser.add_argument("--prompting-conditions", type=str, default="")
+    parser.add_argument("--dataset-variants", type=str, default="")
+    parser.add_argument("--patterns", type=str, default="")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -181,9 +181,9 @@ def main() -> int:
         return 1
 
     model_filter = set(_csv_items(args.models))
-    op_filter    = set(_csv_items(args.operation_types))
-    ds_filter    = set(_csv_items(args.dataset_types))
-    rule_filter  = set(_csv_items(args.rules))
+    op_filter    = set(_csv_items(args.prompting_conditions))
+    ds_filter    = set(_csv_items(args.dataset_variants))
+    rule_filter  = set(_csv_items(args.patterns))
 
     mode = args.mode
     eval_glob = f"eval-{mode}__*.jsonl"
@@ -236,8 +236,8 @@ def main() -> int:
         print("No records aggregated.")
         return 1
 
-    # Sort: model, operation_type, dataset_type, rule_id
-    records.sort(key=lambda r: (r["model"], r["operation_type"], r["dataset_type"], r["rule_id"]))
+    # Sort: model, prompting_condition, dataset_variant, pattern_id
+    records.sort(key=lambda r: (r["model"], r["prompting_condition"], r["dataset_variant"], r["pattern_id"]))
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as f:

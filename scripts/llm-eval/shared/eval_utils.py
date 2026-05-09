@@ -154,5 +154,5 @@ def compute_set_metrics(
     return precision, recall, f1
 
 
-# Operations that require rule identification evaluation
+# Prompting conditions that require rule identification evaluation
 ARP_RULE_EVAL_OPS = {"ARP-full", "ARP-name", "ARP-def"}

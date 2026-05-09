@@ -23,7 +23,7 @@ from shared._base import (
     save_dataset,
 )
 
-DATASET_TYPE = "ls"
+DATASET_VARIANT = "ls"
 
 
 def build_ls(rule: str) -> tuple[list[dict], str, str, str]:
@@ -62,7 +62,7 @@ def main() -> None:
         print(f"\n=== {rule} ===")
         try:
             dataset, fetch_uid, fetched_at, filename = build_ls(rule)
-            save_dataset(dataset, rule, DATASET_TYPE, fetch_uid, fetched_at, filename, build_date=build_date)
+            save_dataset(dataset, rule, DATASET_VARIANT, fetch_uid, fetched_at, filename, build_date=build_date)
         except FileNotFoundError as exc:
             print(f"  SKIP: {exc}")
 

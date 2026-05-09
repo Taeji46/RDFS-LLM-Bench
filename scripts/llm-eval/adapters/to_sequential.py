@@ -12,8 +12,8 @@ PROJECT_ROOT = THIS_FILE.parents[3]
 sys.path.insert(0, str(LLM_EVAL_DIR))
 
 from shared.io import read_json, write_jsonl
-from shared.prompt_builder import normalize_operation_type
-from shared.rule_defs import DEFAULT_SYSTEM_PROMPT, OPERATION_TYPES
+from shared.prompt_builder import normalize_prompting_condition
+from shared.rule_defs import DEFAULT_SYSTEM_PROMPT, PROMPTING_CONDITIONS
 
 DEFAULT_ZEROSHOT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "tasks" / "zeroshot"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "requests" / "sequential"
@@ -33,30 +33,30 @@ def _csv_items(text: str) -> list[str]:
     return [item.strip() for item in text.split(",") if item.strip()]
 
 
-def _resolve_operation_types(raw: str) -> list[str]:
+def _resolve_prompting_conditions(raw: str) -> list[str]:
     if not raw.strip():
-        return list(OPERATION_TYPES)
+        return list(PROMPTING_CONDITIONS)
 
-    operation_types: list[str] = []
+    prompting_conditions: list[str] = []
     for item in _csv_items(raw):
-        op_type = normalize_operation_type(item)
-        if op_type not in operation_types:
-            operation_types.append(op_type)
-    return operation_types
+        prompting_condition = normalize_prompting_condition(item)
+        if prompting_condition not in prompting_conditions:
+            prompting_conditions.append(prompting_condition)
+    return prompting_conditions
 
 
-def _iter_task_files(zeroshot_root: Path, operation_types: list[str]) -> list[Path]:
+def _iter_task_files(zeroshot_root: Path, prompting_conditions: list[str]) -> list[Path]:
     files: list[Path] = []
-    for op_type in operation_types:
-        base = zeroshot_root / op_type
+    for prompting_condition in prompting_conditions:
+        base = zeroshot_root / prompting_condition
         if not base.exists():
             continue
         files.extend(sorted(base.rglob("task__*.json")))
     return files
 
 
-def _rule_dir_from_rule(rule_id: str) -> str:
-    return f"{rule_id.count('_') + 1}-rule"
+def _rule_dir_from_rule(pattern_id: str) -> str:
+    return f"{pattern_id.count('_') + 1}-rule"
 
 
 def _relpath(path: Path) -> str:
@@ -88,13 +88,13 @@ def convert_one(
     if not isinstance(metadata, dict) or not isinstance(tasks, list):
         raise ValueError(f"invalid zero-shot task structure: {task_path}")
 
-    operation_type = _required_str(metadata, "operation_type", task_path)
-    dataset_type = _required_str(metadata, "dataset_type", task_path)
-    rule_id = _required_str(metadata, "rule_id", task_path)
+    prompting_condition = _required_str(metadata, "prompting_condition", task_path)
+    dataset_variant = _required_str(metadata, "dataset_variant", task_path)
+    pattern_id = _required_str(metadata, "pattern_id", task_path)
     source_uid: str | None = metadata.get("source_uid") or None
     build_uid = _required_str(metadata, "build_uid", task_path)
     template_uid = _required_str(metadata, "template_uid", task_path)
-    rule_dir = str(metadata.get("rule_dir") or _rule_dir_from_rule(rule_id))
+    rule_dir = str(metadata.get("rule_dir") or _rule_dir_from_rule(pattern_id))
 
     rows: list[dict] = []
     for task in tasks:
@@ -109,15 +109,15 @@ def convert_one(
             row["system"] = str(task.get("system_prompt", DEFAULT_SYSTEM_PROMPT))
         rows.append(row)
 
-    out_dir = output_root / slug / operation_type / dataset_type / rule_dir
+    out_dir = output_root / slug / prompting_condition / dataset_variant / rule_dir
     if source_uid is not None:
         out_name = (
-            f"seq__{slug}__{operation_type}__{dataset_type}__{rule_id}__"
+            f"seq__{slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__"
             f"n{len(rows)}__{source_uid}__{build_uid}__{template_uid}.jsonl"
         )
     else:
         out_name = (
-            f"seq__{slug}__{operation_type}__{dataset_type}__{rule_id}__"
+            f"seq__{slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__"
             f"n{len(rows)}__{build_uid}__{template_uid}.jsonl"
         )
     out_path = out_dir / out_name
@@ -127,9 +127,9 @@ def convert_one(
             print(f"SKIP (exists): {out_path}")
         return {
             "status": "skipped_exists",
-            "operation_type": operation_type,
-            "dataset_type": dataset_type,
-            "rule_id": rule_id,
+            "prompting_condition": prompting_condition,
+            "dataset_variant": dataset_variant,
+            "pattern_id": pattern_id,
             "model": slug,
             "count": len(rows),
             "source_task_file": _relpath(task_path),
@@ -142,9 +142,9 @@ def convert_one(
 
     return {
         "status": "written",
-        "operation_type": operation_type,
-        "dataset_type": dataset_type,
-        "rule_id": rule_id,
+        "prompting_condition": prompting_condition,
+        "dataset_variant": dataset_variant,
+        "pattern_id": pattern_id,
         "model": slug,
         "count": len(rows),
         "source_task_file": _relpath(task_path),
@@ -159,9 +159,9 @@ def main() -> int:
     model_config = _load_model_config("sequential")
     parser.add_argument("--model", type=str, required=True,
                         help=f"Model slug. Available: {', '.join(model_config) or '(none defined)'}")
-    parser.add_argument("--operation-types", type=str, default=",".join(OPERATION_TYPES), help="Comma-separated inference operation types (e.g. NRP-full,NRP-name)")
-    parser.add_argument("--dataset-types", type=str, default="", help="Comma-separated dataset types")
-    parser.add_argument("--rules", type=str, default="", help="Comma-separated rule ids")
+    parser.add_argument("--prompting-conditions", type=str, default=",".join(PROMPTING_CONDITIONS), help="Comma-separated prompting conditions (e.g. NRP-full,NRP-name)")
+    parser.add_argument("--dataset-variants", type=str, default="", help="Comma-separated dataset variants")
+    parser.add_argument("--patterns", type=str, default="", help="Comma-separated pattern ids")
     parser.add_argument("--max-files", type=int, default=0, help="Debug option: process first N files")
     parser.add_argument("--include-system", action="store_true", help="Include system field in each request row")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing request files")
@@ -183,11 +183,11 @@ def main() -> int:
     zeroshot_root = args.zeroshot_root.resolve()
     output_root = args.output_root.resolve()
 
-    operation_types = _resolve_operation_types(args.operation_types)
-    dataset_filter = set(_csv_items(args.dataset_types))
-    rule_filter = set(_csv_items(args.rules))
+    prompting_conditions = _resolve_prompting_conditions(args.prompting_conditions)
+    dataset_filter = set(_csv_items(args.dataset_variants))
+    rule_filter = set(_csv_items(args.patterns))
 
-    task_files = _iter_task_files(zeroshot_root, operation_types)
+    task_files = _iter_task_files(zeroshot_root, prompting_conditions)
     if args.max_files > 0:
         task_files = task_files[: args.max_files]
 
@@ -207,12 +207,12 @@ def main() -> int:
         if not isinstance(metadata, dict):
             continue
 
-        dataset_type = str(metadata.get("dataset_type", "")).strip()
-        rule_id = str(metadata.get("rule_id", "")).strip()
-        operation_type = str(metadata.get("operation_type", "")).strip()
-        if dataset_filter and dataset_type not in dataset_filter:
+        dataset_variant = str(metadata.get("dataset_variant", "")).strip()
+        pattern_id = str(metadata.get("pattern_id", "")).strip()
+        prompting_condition = str(metadata.get("prompting_condition", "")).strip()
+        if dataset_filter and dataset_variant not in dataset_filter:
             continue
-        if rule_filter and rule_id not in rule_filter:
+        if rule_filter and pattern_id not in rule_filter:
             continue
 
         matched_idx += 1
@@ -228,7 +228,7 @@ def main() -> int:
         )
         records.append(record)
 
-        label = f"{operation_type}/{dataset_type}/{rule_id}"
+        label = f"{prompting_condition}/{dataset_variant}/{pattern_id}"
         status = "skipped (exists)" if record["status"] == "skipped_exists" else "written"
         print(f"[{matched_idx:{w}}] {label:<40}  {record['count']:>5} requests  {status}")
 

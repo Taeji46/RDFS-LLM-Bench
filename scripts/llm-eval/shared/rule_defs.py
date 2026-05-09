@@ -36,12 +36,12 @@ RULE_TEXT_BY_RULE_ID: dict[str, str] = {
     "rdfs3_9_11": "if <i, rdfs:range, X> and <X, rdfs:subClassOf, Y> and <Y, rdfs:subClassOf, Z> and <a, i, b> then <b, rdf:type, X> and <b, rdf:type, Y> and <b, rdf:type, Z> and <X, rdfs:subClassOf, Z>",
 }
 
-OPERATION_TYPES: tuple[str, ...] = (
+PROMPTING_CONDITIONS: tuple[str, ...] = (
     "NRP-full", "NRP-name", "NRP-def",
     "ARP-full", "ARP-name", "ARP-def",
 )
 
-OPERATION_TYPE_ALIASES: dict[str, str] = {
+PROMPTING_CONDITION_ALIASES: dict[str, str] = {
     "nrp-full": "NRP-full",
     "nrp-name": "NRP-name",
     "nrp-def":  "NRP-def",

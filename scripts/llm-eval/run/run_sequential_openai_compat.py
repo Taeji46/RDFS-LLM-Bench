@@ -85,15 +85,15 @@ def _parse_seq_stem(stem: str) -> dict | None:
         return None
     return {
         "slug": parts[0],
-        "operation_type": parts[1],
-        "dataset_type": parts[2],
-        "rule_id": parts[3],
+        "prompting_condition": parts[1],
+        "dataset_variant": parts[2],
+        "pattern_id": parts[3],
     }
 
 
 def _response_dir(response_root: Path, meta: dict) -> Path:
-    rule_dir = f"{meta['rule_id'].count('_') + 1}-rule"
-    return response_root / meta["slug"] / meta["operation_type"] / meta["dataset_type"] / rule_dir
+    rule_dir = f"{meta['pattern_id'].count('_') + 1}-rule"
+    return response_root / meta["slug"] / meta["prompting_condition"] / meta["dataset_variant"] / rule_dir
 
 
 def run_file(
@@ -114,14 +114,14 @@ def run_file(
             print(f"SKIP (unparseable filename, use --fallback-root to save to response root): {req_path.name}")
             return {"status": "skipped_parse_error", "path": str(req_path)}
         slug = stem[len("seq__"):].split("__")[0] if stem.startswith("seq__") else stem
-        op = dtype = rule_id = "unknown"
+        op = dtype = pattern_id = "unknown"
         response_dir = response_root
         stem_prefix = _stem_prefix(stem)
     else:
         slug = meta["slug"]
-        op = meta["operation_type"]
-        dtype = meta["dataset_type"]
-        rule_id = meta["rule_id"]
+        op = meta["prompting_condition"]
+        dtype = meta["dataset_variant"]
+        pattern_id = meta["pattern_id"]
         response_dir = _response_dir(response_root, meta)
         stem_prefix = _stem_prefix(stem)
 
@@ -129,11 +129,11 @@ def run_file(
     if existing and not overwrite:
         if verbose:
             print(f"SKIP (exists): {existing}")
-        return {"status": "skipped_exists", "slug": slug, "op": op, "dtype": dtype, "rule_id": rule_id}
+        return {"status": "skipped_exists", "slug": slug, "op": op, "dtype": dtype, "pattern_id": pattern_id}
 
     rows = read_jsonl(req_path)
     if not rows:
-        return {"status": "skipped_empty", "slug": slug, "op": op, "dtype": dtype, "rule_id": rule_id}
+        return {"status": "skipped_empty", "slug": slug, "op": op, "dtype": dtype, "pattern_id": pattern_id}
 
     ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d%H%M%S")
     out_path = response_dir / f"{stem_prefix}__{ts}.jsonl"
@@ -142,7 +142,7 @@ def run_file(
     file_times: list[float] = []
     results: list[dict] = []
 
-    print(f"[file {file_idx}/{total_files}] {op}/{dtype}/{rule_id}  ({len(rows)} requests)")
+    print(f"[file {file_idx}/{total_files}] {op}/{dtype}/{pattern_id}  ({len(rows)} requests)")
 
     for req_idx, row in enumerate(rows, 1):
         req_id = str(row.get("id", f"request-{req_idx}"))
@@ -208,7 +208,7 @@ def run_file(
     print(f"  -> saved {len(results)} responses  avg {avg:.1f}s/req  total {_format_eta(file_elapsed)}")
     print(f"  -> {out_path}")
 
-    return {"status": "written", "slug": slug, "op": op, "dtype": dtype, "rule_id": rule_id, "count": len(results)}
+    return {"status": "written", "slug": slug, "op": op, "dtype": dtype, "pattern_id": pattern_id, "count": len(results)}
 
 
 def main() -> int:

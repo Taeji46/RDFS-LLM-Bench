@@ -6,10 +6,10 @@ Reads:
 Writes one .xlsx per model:
   data/llm-eval/reports/scores__{model}.xlsx
 
-Each workbook has one sheet per operation_type (e.g. NRP-full, ARP-full, ...).
+Each workbook has one sheet per prompting_condition (e.g. NRP-full, ARP-full, ...).
 Each sheet is a pivot table:
-  rows    = rule_id  (sorted by n_rule, then rule_id)
-  columns = dataset_type
+  rows    = pattern_id  (sorted by n_rule, then pattern_id)
+  columns = dataset_variant
   values  = accuracy
 """
 
@@ -25,14 +25,14 @@ PROJECT_ROOT = THIS_FILE.parents[3]
 
 DEFAULT_REPORT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "reports"
 
-# Canonical display order for operation types
-OPERATION_TYPE_ORDER = [
+# Canonical display order for prompting conditions
+PROMPTING_CONDITION_ORDER = [
     "NRP-full", "NRP-name", "NRP-def",
     "ARP-full", "ARP-name", "ARP-def",
 ]
 
-# Canonical display order for dataset types
-DATASET_TYPE_ORDER = ["rk", "ls", "gs", "gsc", "rva", "ns", "nsc"]
+# Canonical display order for dataset variants
+DATASET_VARIANT_ORDER = ["rk", "ls", "gs", "gsc", "rva", "ns", "nsc"]
 
 
 def _relpath(path: Path) -> str:
@@ -42,13 +42,13 @@ def _relpath(path: Path) -> str:
         return str(path)
 
 
-def _rule_sort_key(rule_id: str) -> tuple:
+def _rule_sort_key(pattern_id: str) -> tuple:
     """Sort by n_rule first, then constituent rule numbers numerically.
 
     e.g. rdfs2 < rdfs3 < rdfs11, rdfs2_3 < rdfs2_7 < rdfs9_11
     """
     import re
-    nums = [int(x) for x in re.findall(r'\d+', rule_id)]
+    nums = [int(x) for x in re.findall(r'\d+', pattern_id)]
     return (len(nums), nums)
 
 
@@ -71,50 +71,50 @@ def _write_workbook(model: str, records: list[dict], report_root: Path, overwrit
         print(f"  SKIP (exists): {_relpath(out_path)}")
         return True
 
-    # Group records by operation_type
+    # Group records by prompting_condition
     by_op: dict[str, list[dict]] = defaultdict(list)
     for rec in records:
-        by_op[rec["operation_type"]].append(rec)
+        by_op[rec["prompting_condition"]].append(rec)
 
     wb = openpyxl.Workbook()
     default_ws = wb.active
     assert default_ws is not None
     wb.remove(default_ws)  # remove default sheet
 
-    # Determine operation_type order
-    op_types = [op for op in OPERATION_TYPE_ORDER if op in by_op]
-    # Append any unexpected operation types at the end
+    # Determine prompting_condition order
+    prompting_conditions = [op for op in PROMPTING_CONDITION_ORDER if op in by_op]
+    # Append any unexpected prompting conditions at the end
     for op in sorted(by_op):
-        if op not in op_types:
-            op_types.append(op)
+        if op not in prompting_conditions:
+            prompting_conditions.append(op)
 
     ARP_OPS = {"ARP-full", "ARP-name", "ARP-def"}
 
-    # Build list of sheets: (sheet_title, op_type, metric_col)
+    # Build list of sheets: (sheet_title, prompting_condition, metric_col)
     sheets: list[tuple[str, str, str]] = []
-    for op_type in op_types:
-        sheets.append((op_type, op_type, "f1_triple"))
-        if op_type in ARP_OPS:
-            sheets.append((f"{op_type}-rule", op_type, "f1_rule"))
+    for prompting_condition in prompting_conditions:
+        sheets.append((prompting_condition, prompting_condition, "f1_triple"))
+        if prompting_condition in ARP_OPS:
+            sheets.append((f"{prompting_condition}-rule", prompting_condition, "f1_rule"))
 
-    for sheet_title, op_type, metric_col in sheets:
-        op_records = by_op[op_type]
+    for sheet_title, prompting_condition, metric_col in sheets:
+        op_records = by_op[prompting_condition]
 
-        # Collect unique rule_ids and dataset_types
-        rule_ids = sorted({r["rule_id"] for r in op_records}, key=_rule_sort_key)
-        ds_types = [d for d in DATASET_TYPE_ORDER if any(r["dataset_type"] == d for r in op_records)]
-        for d in sorted({r["dataset_type"] for r in op_records}):
-            if d not in ds_types:
-                ds_types.append(d)
+        # Collect unique pattern_ids and dataset_variants
+        pattern_ids = sorted({r["pattern_id"] for r in op_records}, key=_rule_sort_key)
+        ds_variants = [d for d in DATASET_VARIANT_ORDER if any(r["dataset_variant"] == d for r in op_records)]
+        for d in sorted({r["dataset_variant"] for r in op_records}):
+            if d not in ds_variants:
+                ds_variants.append(d)
 
-        # Build lookup: (rule_id, dataset_type) -> metric value
+        # Build lookup: (pattern_id, dataset_variant) -> metric value
         lookup: dict[tuple, float] = {}
         for rec in op_records:
             raw = rec.get(metric_col, "")
             if raw == "" or raw is None:
                 continue
             try:
-                lookup[(rec["rule_id"], rec["dataset_type"])] = float(raw)
+                lookup[(rec["pattern_id"], rec["dataset_variant"])] = float(raw)
             except ValueError:
                 pass
 
@@ -128,21 +128,21 @@ def _write_workbook(model: str, records: list[dict], report_root: Path, overwrit
         header_font = Font(bold=True, color="FFFFFF")
         center = Alignment(horizontal="center")
 
-        ws.cell(row=1, column=1, value="rule_id").font = Font(bold=True)
+        ws.cell(row=1, column=1, value="pattern_id").font = Font(bold=True)
         ws.cell(row=1, column=1).fill = PatternFill("solid", fgColor="D9D9D9")
-        for col_idx, ds in enumerate(ds_types, start=2):
+        for col_idx, ds in enumerate(ds_variants, start=2):
             cell = ws.cell(row=1, column=col_idx, value=ds)
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = center
 
-        for row_idx, rule_id in enumerate(rule_ids, start=2):
-            cell = ws.cell(row=row_idx, column=1, value=rule_id)
+        for row_idx, pattern_id in enumerate(pattern_ids, start=2):
+            cell = ws.cell(row=row_idx, column=1, value=pattern_id)
             cell.font = Font(bold=True)
             cell.fill = PatternFill("solid", fgColor=row_color)
 
-            for col_idx, ds in enumerate(ds_types, start=2):
-                val = lookup.get((rule_id, ds))
+            for col_idx, ds in enumerate(ds_variants, start=2):
+                val = lookup.get((pattern_id, ds))
                 cell = ws.cell(row=row_idx, column=col_idx)
                 if val is not None:
                     cell.value = round(val, 6)
@@ -153,7 +153,7 @@ def _write_workbook(model: str, records: list[dict], report_root: Path, overwrit
                     cell.alignment = center
 
         ws.column_dimensions["A"].width = 16
-        for col_idx in range(2, len(ds_types) + 2):
+        for col_idx in range(2, len(ds_variants) + 2):
             ws.column_dimensions[get_column_letter(col_idx)].width = 12
 
     report_root.mkdir(parents=True, exist_ok=True)

@@ -79,22 +79,22 @@ def _build_task_index() -> dict[tuple[str, str, str], list[dict]]:
         with path.open(encoding="utf-8") as f:
             data = json.load(f)
         meta  = data.get("metadata", {})
-        op    = meta.get("operation_type", "")
-        ds    = meta.get("dataset_type", "")
-        rule  = meta.get("rule_id", "")
+        op    = meta.get("prompting_condition", "")
+        ds    = meta.get("dataset_variant", "")
+        rule  = meta.get("pattern_id", "")
         tasks = data.get("tasks", [])
         if op and ds and rule and tasks:
             index[(op, ds, rule)] = tasks
     return index
 
 
-def _expected_output_text(task: dict, op_type: str, rule_id: str) -> str:
+def _expected_output_text(task: dict, prompting_condition: str, pattern_id: str) -> str:
     """Build the expected model output string (triples + used_rules for ARP)."""
     out = task.get("expected_output", "")
-    if op_type in ARP_OPS:
-        # Reconstruct expected [used_rules: ...] from rule_id
-        rule_nums = re.findall(r"\d+", rule_id)
-        if op_type == "ARP-def":
+    if prompting_condition in ARP_OPS:
+        # Reconstruct expected [used_rules: ...] from pattern_id
+        rule_nums = re.findall(r"\d+", pattern_id)
+        if prompting_condition == "ARP-def":
             labels = [_RULE_LABEL_MAP.get(f"rdfs{n}", f"rdfs{n}") for n in rule_nums]
             used = "[used_rules: " + ", ".join(labels) + "]"
         else:
