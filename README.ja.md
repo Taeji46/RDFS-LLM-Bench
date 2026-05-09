@@ -10,16 +10,34 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 
 ---
 
-## 概要
+## 目次
 
-RDFS-LLM-Bench は、LLM が RDFS ベースの推論をどの程度実行できるかを体系的に評価します。
-6つのコア RDFS ルール（rdfs2, rdfs3, rdfs5, rdfs7, rdfs9, rdfs11）と
-13の複合ルール構成（計19ルール構成）を対象に、7種類のデータセット系列と
-6種類の推論操作タイプを提供します。
+- [概要](#概要)
+- [RDFS 含意ルール](#rdfs-含意ルール)
+- [データセット系列](#データセット系列)
+- [Presented Rule Type と Rule Format](#presented-rule-type-と-rule-format)
+- [ディレクトリ構成](#ディレクトリ構成)
+- [クイックスタート: 既存データセットで LLM を評価する](#クイックスタート-既存ベンチマークでllmを評価する) — 既成のデータセットを使う
+- [フルビルド: LOD ソースからデータセットを構築する](#フルビルド-lod-ソースからデータセットを構築する) — 自分でデータセットを構築する
+- [LLM 評価パイプライン](#llm-評価パイプライン) — 両パスの共通部分
+- [データフォーマット](#データフォーマット)
+- [ファイル命名規則](#ファイル命名規則)
+- [トラブルシューティング](#トラブルシューティング)
+- [ライセンス](#ライセンス)
 
 ---
 
-## RDFS ルール
+## 概要
+
+RDFS-LLM-Bench は LLM の RDFS 推論能力を体系的に評価するためのベンチマークです。
+6つのコア RDFS 含意ルール（rdfs2, rdfs3, rdfs5, rdfs7, rdfs9, rdfs11）に加えて
+13個の複数ルール組み合わせを扱い、合計 19 種類の含意パターン（1 ルール 6 種 + 2 ルール 7 種 + 3 ルール 6 種）を網羅します。
+評価は 7 種類のデータセットに対し、2 種類の Presented Rule Type × 3 種類の Rule Format
+（= 6 通りのプロンプト条件）で行います。
+
+---
+
+## RDFS 含意ルール
 
 | ルール | 前提 | 結論 |
 |---|---|---|
@@ -30,7 +48,7 @@ RDFS-LLM-Bench は、LLM が RDFS ベースの推論をどの程度実行でき�
 | rdfs9 | `<X, rdfs:subClassOf, Y>` かつ `<a, rdf:type, X>` | `<a, rdf:type, Y>` |
 | rdfs11 | `<X, rdfs:subClassOf, Y>` かつ `<Y, rdfs:subClassOf, Z>` | `<X, rdfs:subClassOf, Z>` |
 
-複合ルール構成（13種）: rdfs2\_3, rdfs2\_7, rdfs2\_9, rdfs3\_7, rdfs3\_9, rdfs5\_7, rdfs9\_11, rdfs2\_3\_7, rdfs2\_3\_9, rdfs2\_5\_7, rdfs2\_9\_11, rdfs3\_5\_7, rdfs3\_9\_11
+複数ルールの含意パターン（13 種類 = 2 ルール 7 種 + 3 ルール 6 種）: rdfs2\_3, rdfs2\_7, rdfs2\_9, rdfs3\_7, rdfs3\_9, rdfs5\_7, rdfs9\_11, rdfs2\_3\_7, rdfs2\_3\_9, rdfs2\_5\_7, rdfs2\_9\_11, rdfs3\_5\_7, rdfs3\_9\_11
 
 ---
 
@@ -39,50 +57,34 @@ RDFS-LLM-Bench は、LLM が RDFS ベースの推論をどの程度実行でき�
 | 系列 | ソース | 説明 |
 |---|---|---|
 | `rk` | LOD サンプル | DBpedia/Wikidata/schema.org の実世界トリプルをそのまま使用 |
-| `ls` | LOD サンプル | ローカルシャッフル: エントリ内でタームをスワップ・デレンジ |
-| `gs` | LOD サンプル | グローバルシャッフル: タームスロットにグローバルシャッフルした LOD 値を割り当て |
+| `ls` | LOD サンプル | ローカルシャッフル: エントリ内でリソースをスワップ・デレンジ |
+| `gs` | LOD サンプル | グローバルシャッフル: リソーススロットにグローバルシャッフルした LOD 値を割り当て |
 | `gsc` | LOD サンプル | `gs` と同様だが型一貫ケース付き（クラス: PascalCase, プロパティ: camelCase）|
-| `ns` | スタンドアロン | 非意味論的: 全タームスロットにランダム8文字英数字トークン |
+| `ns` | スタンドアロン | 非意味論的: 全リソーススロットにランダム8文字英数字トークン |
 | `nsc` | スタンドアロン | ケース付き非意味論的: 型に応じたランダムトークン（PascalCase / camelCase）|
-| `rva` | スタンドアロン | ランダム語彙割り当て: ターム種別ごとに DBpedia ローカル名をランダム割り当て |
+| `rva` | スタンドアロン | ランダム語彙割り当て: リソース種別ごとに DBpedia ローカル名をランダム割り当て |
 
 ---
 
-## 推論操作タイプ（Inference Operation Types）
+## Presented Rule Type と Rule Format
 
-各データセットエントリには、**推論操作タイプ**に基づいたプロンプトが対応付けられます。
-推論操作タイプは、モデルにどの程度のルール情報を与えるかを定義します。
+各データセットエントリには 1 つのプロンプトが対応付けられます。プロンプトの内容は **Presented Rule Type (PRT)** と **Rule Format** の 2 軸で決まります。
 
-| 推論操作タイプ | 略称 | 説明 |
+| PRT | 略称 | 説明 |
 |---|---|---|
 | Necessary Rule Presentation | NRP | 推論タスクに必要なルール（群）を与え、モデルがそれを前提知識に適用する |
 | All-Rule Presentation | ARP | 全 RDFS ルールを与え、モデルが必要なものを選択・適用する |
 
-各操作タイプには3種類の**ルール情報提示形式**があります。
+各 PRT は次の 3 つの Rule Format のいずれかと組み合わせて使います。
 
-| 形式 | サフィックス | モデルへの提示内容 |
+| Format | サフィックス | モデルへの提示内容 |
 |---|---|---|
 | フル | `-full` | ルール名 + 定義 |
 | 名前のみ | `-name` | ルール名のみ |
 | 定義のみ | `-def` | 定義のみ |
 
-合計6種類の推論操作タイプ:
-`NRP-full`, `NRP-name`, `NRP-def`, `ARP-full`, `ARP-name`, `ARP-def`
-
-### ルール数ごとの有効な組み合わせ
-
-全ての推論操作タイプが全ルール数に適用できます。
-
-| | 1-rule | 2-rule | 3-rule |
-|---|---|---|---|
-| NRP-full | ✓ | ✓ | ✓ |
-| NRP-name | ✓ | ✓ | ✓ |
-| NRP-def  | ✓ | ✓ | ✓ |
-| ARP-full | ✓ | ✓ | ✓ |
-| ARP-name | ✓ | ✓ | ✓ |
-| ARP-def  | ✓ | ✓ | ✓ |
-
-NRP のプロンプトはルール数に応じてテンプレートを切り替えます。1-rule では単数形（"Solely based on this rule…"）、多 rule では複数形（"…by combining these rules"）のテンプレートを使用します。
+PRT と Rule Format を組み合わせると合計 6 通りのプロンプト条件になります。CLI 引数・ファイルパス・JSON の `operation_type` フィールドでは `{PRT}-{rule_format}` の形式で表記します:
+`NRP-full`, `NRP-name`, `NRP-def`, `ARP-full`, `ARP-name`, `ARP-def`。
 
 ---
 
@@ -149,7 +151,32 @@ data/
 
 ---
 
-## クイックスタート
+## クイックスタート: 既存データセットで LLM を評価する
+
+### 1. 依存関係のインストール
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Zenodo からベンチマークを取得
+
+ベンチマークは [Zenodo（DOI: 10.5281/zenodo.19867258）](https://doi.org/10.5281/zenodo.19867258) で公開しています。`tasks.zip` をダウンロードして、プロジェクトのデータディレクトリに展開します:
+
+```bash
+mkdir -p data/llm-eval
+cd data/llm-eval && unzip /path/to/tasks.zip && cd -
+```
+
+展開すると `data/llm-eval/tasks/zeroshot/{operation_type}/{dataset_type}/{n-rule}/task__*.json` が並びます。
+
+### 3. 評価パイプラインへ進む
+
+[ステップ 1 — LLM の登録](#ステップ-1--llm-の登録) に進みます。
+
+---
+
+## フルビルド: LOD ソースからデータセットを構築する
 
 ### 1. 依存関係のインストール
 
@@ -165,7 +192,7 @@ pip install -r requirements.txt
 python scripts/fetch-samples/1-rule/fetch_samples_rdfs2.py --date 20260418
 ```
 
-19ルール構成を一括実行:
+19の含意パターンを一括実行:
 
 ```bash
 for f in \
@@ -203,13 +230,9 @@ python scripts/build-dataset/standalone/gen_rva.py
 
 出力先: `data/datasets/{系列}/{1,2,3}-rule/dataset__*.json`
 
----
+### 5. ゼロショットタスクファイルの生成
 
-## LLM 評価パイプライン
-
-### ステップ 1 — ゼロショットタスクファイルの生成
-
-ベンチマークデータセットから各推論操作タイプのプロンプトファイルを生成します。
+生成したデータセットから、各プロンプト条件（PRT × Rule Format）のプロンプトファイルを作ります。
 
 ```bash
 # 全操作タイプ・全データセット系列
@@ -234,7 +257,38 @@ python scripts/llm-eval/tasks/build_zeroshot_tasks.py \
 
 出力先: `data/llm-eval/tasks/zeroshot/{operation_type}/{dataset_type}/{n-rule}/task__*.json`
 
-### ステップ 2 — リクエストファイルへの変換
+### 6. 評価パイプラインへ進む
+
+[ステップ 1 — LLM の登録](#ステップ-1--llm-の登録) に進みます。
+
+---
+
+## LLM 評価パイプライン
+
+クイックスタートとフルビルドのどちらでも共通で実行するパイプラインです。
+
+### ステップ 1 — LLM の登録
+
+評価したい LLM を `scripts/llm-eval/model-config.json` に追加します。各エントリは、パイプラインで `--model` 引数として使うモデル *slug* を、`runner`（実行方式）と `api_model`（API 上のモデル名）に対応付けます:
+
+```json
+{
+  "your-model-slug": {
+    "runner": "sequential-openai-compat",
+    "api_model": "provider/model-name"
+  }
+}
+```
+
+`runner` に指定できる値:
+
+| Runner | 用途 |
+|---|---|
+| `openai-batch` | OpenAI Batch API（例: GPT-4o）|
+| `sequential-openai-compat` | OpenAI 互換 HTTP API（例: DeepInfra で公開されているモデル）|
+| `sequential-ollama` | ローカルまたはリモートの Ollama デーモン |
+
+### ステップ 2 — リクエストファイルの作成
 
 **OpenAI Batch API 用:**
 
@@ -258,29 +312,38 @@ python scripts/llm-eval/adapters/to_sequential.py \
 
 ### ステップ 3 — LLM 推論の実行
 
-各ランナーは専用のキューベースディレクトリを持ちます。名前付きサブディレクトリを作成してリクエストファイルを配置し、`--queue <名前>` を指定して実行します。
+各 runner は `data/llm-eval/requests/input-queues/` 配下の*キューディレクトリ*からリクエストファイルを読みます。モデルに対応する runner 種別を選び、キューサブディレクトリを作成し、ステップ 2 で生成したリクエストファイルをコピーしてから `--queue <名前>` で runner を起動します。
 
-```
-data/llm-eval/requests/input-queues/
-  openai-batch/
-    <queue-name>/   ← batch__*.jsonl を配置
-  openai-compat/
-    <queue-name>/   ← seq__*.jsonl を配置
-  ollama/
-    <queue-name>/   ← seq__*.jsonl を配置
+#### OpenAI Batch
+
+キューディレクトリを作成:
+
+```bash
+mkdir -p data/llm-eval/requests/input-queues/openai-batch/<queue-name>
 ```
 
-**OpenAI Batch:**
+リクエストファイルをコピー:
+
+```bash
+cp data/llm-eval/requests/openai-batch/<model>/<op>/<ds>/*/batch__*.jsonl \
+   data/llm-eval/requests/input-queues/openai-batch/<queue-name>/
+```
+
+バッチをアップロード:
 
 ```bash
 python scripts/llm-eval/run/openai_batch_upload.py --queue <queue-name>
+```
+
+全バッチが完了するまで download を繰り返し実行:
+
+```bash
 python scripts/llm-eval/run/openai_batch_download.py --queue <queue-name>
 ```
 
-アップロード結果は `input-queues/openai-batch/<queue-name>/upload_mapping.json` に記録されます。
-全バッチが完了するまで download を繰り返し実行してください。
+アップロード結果は `input-queues/openai-batch/<queue-name>/upload_mapping.json` に記録されます。**このファイルは編集・削除しないでください** — `openai_batch_download.py` がアップロード済みジョブのバッチ ID を参照するために読み込みます。
 
-**逐次実行（OpenAI互換 API）:**
+#### 逐次実行（OpenAI 互換 API）
 
 `model-config.json` で `runner: "sequential-openai-compat"` のモデル（DeepInfra ホスト等）が対象です。
 `.env` に以下の変数を設定してください:
@@ -290,14 +353,44 @@ OPENAI_COMPAT_API_KEY=<your-api-key>
 OPENAI_COMPAT_BASE_URL=https://api.deepinfra.com/v1/openai
 ```
 
+キューディレクトリを作成:
+
+```bash
+mkdir -p data/llm-eval/requests/input-queues/openai-compat/<queue-name>
+```
+
+リクエストファイルをコピー:
+
+```bash
+cp data/llm-eval/requests/sequential/<model>/<op>/<ds>/*/seq__*.jsonl \
+   data/llm-eval/requests/input-queues/openai-compat/<queue-name>/
+```
+
+推論を実行:
+
 ```bash
 python scripts/llm-eval/run/run_sequential_openai_compat.py --queue <queue-name>
 ```
 
-**逐次実行（Ollama）:**
+#### 逐次実行（Ollama）
 
 `model-config.json` で `runner: "sequential-ollama"` のモデルが対象です。
 Ollama デーモンが起動済みで対象モデルがプル済みである必要があります。
+
+キューディレクトリを作成:
+
+```bash
+mkdir -p data/llm-eval/requests/input-queues/ollama/<queue-name>
+```
+
+リクエストファイルをコピー:
+
+```bash
+cp data/llm-eval/requests/sequential/<model>/<op>/<ds>/*/seq__*.jsonl \
+   data/llm-eval/requests/input-queues/ollama/<queue-name>/
+```
+
+推論を実行:
 
 ```bash
 python scripts/llm-eval/run/run_sequential_ollama.py --queue <queue-name>
@@ -336,15 +429,31 @@ python scripts/llm-eval/run/run_sequential_ollama.py --queue <queue-name> --olla
 
 デフォルトでは `data/llm-eval/responses/` 以下の全レスポンス種別（`openai-batch`、`sequential` 等）をまとめて評価します。
 
+#### Strict モード（デフォルト）
+
+正規形式 `<s, p, o>` のみを正解トリプルとして受け入れます。
+
 ```bash
-# strict モード（デフォルト）: 正規形式 <s, p, o> のみ受け入れ
 python scripts/llm-eval/eval/evaluate_outputs.py --mode strict
+```
 
-# flex モード: 順序ベースのマッチング。<s,p,o>・<s p o>・<X rdf:type Y> 等も受け入れ
+#### Flex モード
+
+順序ベースのマッチング。`<s,p,o>`、`<s , p , o>`、`<s p o>` のような区切り文字や空白の表記揺れを許容します。
+
+```bash
 python scripts/llm-eval/eval/evaluate_outputs.py --mode flex
+```
 
-# 特定のレスポンス種別のみ評価する場合
+#### レスポンス種別での絞り込み
+
+`--response-type` で特定のレスポンス種別のみを評価します。
+
+```bash
 python scripts/llm-eval/eval/evaluate_outputs.py --mode strict --response-type sequential
+```
+
+```bash
 python scripts/llm-eval/eval/evaluate_outputs.py --mode strict --response-type openai-batch
 ```
 
@@ -405,7 +514,27 @@ python scripts/llm-eval/run/estimate_budget.py --overwrite
 input トークンはリクエストファイルのプロンプトメッセージから計算します。
 output トークンはタスクファイルの `expected_output` から推定します（ARP 系は `[used_rules: ...]` 行も含む）。
 
-単価は `scripts/llm-eval/model-pricing.json` に USD/1M tokens 形式で記載されています。実行前に必要に応じて編集してください。
+#### モデルごとの単価設定
+
+単価は `scripts/llm-eval/model-pricing.json` から読み込まれます。各エントリは、モデル slug を 100 万トークンあたりの USD レートに対応付けます:
+
+```json
+{
+  "your-model-slug": {
+    "input_per_1m": 0.075,
+    "output_per_1m": 0.30
+  }
+}
+```
+
+| フィールド | 単位 | 説明 |
+|---|---|---|
+| `input_per_1m` | USD / 1M トークン | プロンプト（入力）トークンの単価 |
+| `output_per_1m` | USD / 1M トークン | 補完（出力）トークンの単価 |
+
+ローカル実行や無料モデルの場合は両フィールドを `0.0` にしてください。`estimate_budget.py` を実行する前に、最新のレートに合わせて編集します。
+
+> **推論モデルに関する注意。** 本見積もりはプロンプトと期待出力の可視トークンのみをカウントし、一部のモデル（例: gpt-oss 系）が別計算する**内部推論トークンは考慮しません**。推論モデルの予算を見積もる際は、必ず小規模なパイロット実行を行い、API が返す実使用量から外挿してください。
 
 ### ステップ 5 — スコアの集計
 
@@ -416,7 +545,9 @@ python scripts/llm-eval/report/aggregate_scores.py --mode flex
 
 出力先: `data/llm-eval/reports/{strict,flex}/scores-{mode}.csv`
 
-### ステップ 6 — Excel へのエクスポート
+### ステップ 6 — モデル別スコアシートの出力
+
+ステップ 5 で集計した CSV を、モデルごとに 1 つの Excel ファイルへ分割します。各ファイル内ではプロンプト条件（NRP-full、ARP-name 等）ごとにシートが分かれます。
 
 ```bash
 python scripts/llm-eval/report/export_excel.py --mode strict
@@ -434,20 +565,40 @@ python scripts/llm-eval/report/compute_composite_metrics.py --mode flex
 
 出力先: `data/llm-eval/reports/{strict,flex}/composite_metrics-{mode}.csv`
 
+出力カラム:
+
+| カラム | 正式名 |
+|---|---|
+| `RI` | Real-world Inference |
+| `SI` | Structural Inference |
+| `RRS` | Real-world Rule Selection |
+| `SRS` | Structural Rule Selection |
+| `VR` | Vocabulary Robustness |
+| `TR` | Typographic Robustness |
+| `RDI` | Rule Definition Independence |
+
+各指標の正確な定義は論文を参照してください。
+
 ### （任意）スケーリング分析
 
-1-rule / 2-rule / 3-rule で F1 がどう変化するかを分析します（rule_info == "full" のみ対象）：
+1-rule / 2-rule / 3-rule で F1 がどう変化するかを、ルール形式（full / def / name）ごとに分析します：
 
 ```bash
 python scripts/llm-eval/report/analyze_scaling.py --mode strict
 python scripts/llm-eval/report/analyze_scaling.py --mode flex
 ```
 
-出力先: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx`（データセット種別ごとに1シート）
+出力先: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx`。各 (Rule Format × dataset_type) の組み合わせごとに 1 シートが生成されます。シート名の形式:
+
+| Rule Format | シート名 | 例 |
+|---|---|---|
+| `full` | `<dataset_type>` | `rk`, `ls`, `ns`, ... |
+| `def` | `<dataset_type>-def` | `rk-def`, `ls-def`, ... |
+| `name` | `<dataset_type>-name` | `rk-name`, `ls-name`, ... |
 
 ### （任意）ルールレベル分析
 
-各ルール単体の F1 を 1-rule シナリオのみ（n_rule == 1, rule_info == "full"）から算出します。マルチルールシナリオを除外することで、他ルールの難易度に汚染されない、各ルール固有の難しさを測れます：
+各ルール単体の F1 を、Rule Format が `full` の 1 ルール含意パターンのみから算出します。
 
 ```bash
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode strict
@@ -469,22 +620,36 @@ python scripts/llm-eval/report/f1_by_dataset_table.py --mode flex
 
 ---
 
-## 評価モード
-
-評価モードはステップ 4〜7 の `--mode` 引数で切り替えます。
-
-| モード | 説明 |
-|---|---|
-| `strict` | カンマ＋スペース区切りの正規形式 `<s, p, o>` のみを有効なトリプルとして受け入れます。推論能力と出力形式への従順さを同時に評価します。 |
-| `flex` | `,`, ` `, `<>` のみを区切り文字として s, p, o が順序通りに含まれる `<...>` トークンを受け入れます。`<s,p,o>`, `<s p o>`, `<X rdf:type Y>` などの形式揺れに対応します。出力形式に依存せず純粋な推論能力を評価します。 |
-
-strict と flex のスコア差は、出力形式不遵守による影響の大きさを示します。
-
----
-
 ## データフォーマット
 
+### LOD サンプル（`data/lod-samples/`）
+
+各ルールに対する SPARQL クエリの生結果。`entries` 配列にはエンドポイントから取得した変数バインディングが入ります。
+
+```json
+{
+  "metadata": {
+    "endpoints": ["https://dbpedia.org/sparql"],
+    "fetched_at": "20241216",
+    "rule": "rdfs9",
+    "source": "dbp",
+    "limit": 400,
+    "fetch_uid": "f-1862e2be",
+    "count": 400
+  },
+  "entries": [
+    {
+      "a": "http://dbpedia.org/resource/Toll-like_receptor_5",
+      "x": "http://dbpedia.org/ontology/Gene",
+      "y": "http://dbpedia.org/ontology/Biomolecule"
+    }
+  ]
+}
+```
+
 ### データセットエントリ（`data/datasets/`）
+
+プロンプト構築に使う前提知識と期待出力のペア集。
 
 ```json
 {
@@ -506,6 +671,8 @@ strict と flex のスコア差は、出力形式不遵守による影響の大�
 
 ### タスクファイル（`data/llm-eval/tasks/zeroshot/`）
 
+プロンプト条件ごとの、レンダリング済みプロンプトを保持するタスクファイル。
+
 ```json
 {
   "metadata": {
@@ -523,6 +690,61 @@ strict と flex のスコア差は、出力形式不遵守による影響の大�
       "expected_output": "<Alice, rdf:type, Person>"
     }
   ]
+}
+```
+
+### リクエストファイル — sequential（`data/llm-eval/requests/sequential/`）
+
+JSON Lines 形式。1 行 1 リクエスト。
+
+```json
+{"id": "request-1", "model": "openai/gpt-oss-120b", "input": "Given the following rule and premise knowledge: ..."}
+```
+
+### リクエストファイル — OpenAI Batch（`data/llm-eval/requests/openai-batch/`）
+
+OpenAI Batch API の JSON Lines 形式。
+
+```json
+{
+  "custom_id": "request-1",
+  "method": "POST",
+  "url": "/v1/chat/completions",
+  "body": {
+    "model": "gpt-4o-2024-08-06",
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "Given the following rule and premise knowledge: ..."}
+    ]
+  }
+}
+```
+
+### レスポンスファイル（`data/llm-eval/responses/`）
+
+JSON Lines 形式。1 行 1 レスポンス。推論モデルの場合は `reasoning_content` フィールドが追加されます。
+
+```json
+{"id": "request-1", "response": "<Alice, rdf:type, Person>"}
+```
+
+### 評価結果（`data/llm-eval/eval/`）
+
+JSON Lines 形式。1 リクエストあたり 1 行で、precision / recall / F1 と、抽出・フィルタ済みのトリプルが記録されます。
+
+```json
+{
+  "task_id": "request-1",
+  "premise_knowledge": "<hasJob, rdfs:domain, Person>, <Alice, hasJob, Engineer>",
+  "expected_output": "<Alice, rdf:type, Person>",
+  "model_output": "<Alice, rdf:type, Person>",
+  "expected_triples": ["Alice, rdf:type, Person"],
+  "filtered_triples": ["Alice, rdf:type, Person"],
+  "precision_triple": 1.0,
+  "recall_triple": 1.0,
+  "f1_triple": 1.0,
+  "triple_ok": true,
+  "overall_ok": true
 }
 ```
 

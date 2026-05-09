@@ -10,16 +10,34 @@ Japanese version: [README.ja.md](README.ja.md)
 
 ---
 
-## Overview
+## Contents
 
-RDFS-LLM-Bench systematically evaluates how well LLMs can perform RDFS-based reasoning.
-The benchmark covers 6 core RDFS rules (rdfs2, rdfs3, rdfs5, rdfs7, rdfs9, rdfs11) and
-13 combined rule sets (19 rule configurations in total), with 7 dataset families and
-6 inference operation types.
+- [Overview](#overview)
+- [RDFS Entailment Rules](#rdfs-entailment-rules)
+- [Dataset Families](#dataset-families)
+- [Presented Rule Types and Rule Formats](#presented-rule-types-and-rule-formats)
+- [Directory Layout](#directory-layout)
+- [Quick Start: Evaluate an LLM](#quick-start-evaluate-an-llm) — use the pre-built dataset
+- [Full Build: Build the Dataset from LOD Sources](#full-build-build-the-dataset-from-lod-sources) — build the dataset yourself
+- [LLM Evaluation Pipeline](#llm-evaluation-pipeline) — shared by both paths above
+- [Data Format](#data-format)
+- [File Naming Conventions](#file-naming-conventions)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
 
 ---
 
-## RDFS Rules
+## Overview
+
+RDFS-LLM-Bench systematically evaluates how well LLMs can perform RDFS-based reasoning.
+The benchmark covers 6 core RDFS entailment rules (rdfs2, rdfs3, rdfs5, rdfs7, rdfs9,
+rdfs11) and 13 multi-rule combinations, yielding 19 entailment patterns in total
+(6 single-rule + 7 two-rule + 6 three-rule). It evaluates LLMs across 7 dataset
+families under 2 presented rule types × 3 rule formats (= 6 prompt conditions).
+
+---
+
+## RDFS Entailment Rules
 
 | Rule | If … | Then … |
 |---|---|---|
@@ -30,7 +48,7 @@ The benchmark covers 6 core RDFS rules (rdfs2, rdfs3, rdfs5, rdfs7, rdfs9, rdfs1
 | rdfs9 | `<X, rdfs:subClassOf, Y>` and `<a, rdf:type, X>` | `<a, rdf:type, Y>` |
 | rdfs11 | `<X, rdfs:subClassOf, Y>` and `<Y, rdfs:subClassOf, Z>` | `<X, rdfs:subClassOf, Z>` |
 
-Combined rule configurations (13): rdfs2\_3, rdfs2\_7, rdfs2\_9, rdfs3\_7, rdfs3\_9, rdfs5\_7, rdfs9\_11, rdfs2\_3\_7, rdfs2\_3\_9, rdfs2\_5\_7, rdfs2\_9\_11, rdfs3\_5\_7, rdfs3\_9\_11
+Multi-rule entailment patterns (13 = 7 two-rule + 6 three-rule): rdfs2\_3, rdfs2\_7, rdfs2\_9, rdfs3\_7, rdfs3\_9, rdfs5\_7, rdfs9\_11, rdfs2\_3\_7, rdfs2\_3\_9, rdfs2\_5\_7, rdfs2\_9\_11, rdfs3\_5\_7, rdfs3\_9\_11
 
 ---
 
@@ -39,50 +57,34 @@ Combined rule configurations (13): rdfs2\_3, rdfs2\_7, rdfs2\_9, rdfs3\_7, rdfs3
 | Family | Source | Description |
 |---|---|---|
 | `rk` | LOD samples | Raw real-world triples from DBpedia/Wikidata/schema.org |
-| `ls` | LOD samples | Local shuffle: terms swapped/deranged within each entry |
-| `gs` | LOD samples | Global shuffle: term slots filled with globally shuffled LOD values |
+| `ls` | LOD samples | Local shuffle: resources swapped/deranged within each entry |
+| `gs` | LOD samples | Global shuffle: resource slots filled with globally shuffled LOD values |
 | `gsc` | LOD samples | Like `gs` but with type-consistent case (PascalCase for classes, camelCase for properties) |
-| `ns` | Standalone | Non-Semantic: random 8-char alphanumeric tokens for all term slots |
+| `ns` | Standalone | Non-Semantic: random 8-char alphanumeric tokens for all resource slots |
 | `nsc` | Standalone | Non-Semantic with Case: type-specific random tokens (PascalCase / camelCase) |
-| `rva` | Standalone | Random Vocabulary Assignment: random DBpedia local names assigned by term type |
+| `rva` | Standalone | Random Vocabulary Assignment: random DBpedia local names assigned by resource type |
 
 ---
 
-## Inference Operation Types
+## Presented Rule Types and Rule Formats
 
-Each dataset entry is paired with a prompt based on the **Inference Operation Type**, which defines
-how much rule information is given to the model.
+Each dataset entry is paired with a prompt determined by two axes: the Presented Rule Type (PRT) and the Rule Format.
 
-| Operation Type | Abbrev. | Description |
+| PRT | Abbrev. | Description |
 |---|---|---|
 | Necessary Rule Presentation | NRP | The rule(s) needed for the inference task are given; the model applies them to the premise |
 | All-Rule Presentation | ARP | All RDFS rules are given; the model selects and applies as needed |
 
-Each operation type has three **rule info** variants:
+Each PRT is combined with one of three rule formats:
 
-| Variant | Suffix | What the model receives |
+| Format | Suffix | What the model receives |
 |---|---|---|
 | Full | `-full` | Rule name + definition |
 | Name only | `-name` | Rule name only |
 | Definition only | `-def` | Rule definition only |
 
-This gives 6 inference operation types in total:
-`NRP-full`, `NRP-name`, `NRP-def`, `ARP-full`, `ARP-name`, `ARP-def`
-
-### Valid combinations by rule count
-
-All operation types apply to all rule counts.
-
-| | 1-rule | 2-rule | 3-rule |
-|---|---|---|---|
-| NRP-full | ✓ | ✓ | ✓ |
-| NRP-name | ✓ | ✓ | ✓ |
-| NRP-def  | ✓ | ✓ | ✓ |
-| ARP-full | ✓ | ✓ | ✓ |
-| ARP-name | ✓ | ✓ | ✓ |
-| ARP-def  | ✓ | ✓ | ✓ |
-
-NRP prompts adapt their template to the rule count: single-rule scenarios use a singular form ("Solely based on this rule…"), while multi-rule scenarios use a plural form ("…by combining these rules").
+The combination of PRT and Rule Format gives 6 prompt conditions, encoded as `{PRT}-{rule_format}` in CLI arguments, file paths, and the `operation_type` JSON field:
+`NRP-full`, `NRP-name`, `NRP-def`, `ARP-full`, `ARP-name`, `ARP-def`.
 
 ---
 
@@ -149,7 +151,32 @@ data/
 
 ---
 
-## Quick Start
+## Quick Start: Evaluate an LLM
+
+### 1. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Download the pre-built benchmark from Zenodo
+
+The benchmark is published at [Zenodo (DOI: 10.5281/zenodo.19867258)](https://doi.org/10.5281/zenodo.19867258). Download `tasks.zip` and extract it to the project's data directory:
+
+```bash
+mkdir -p data/llm-eval
+cd data/llm-eval && unzip /path/to/tasks.zip && cd -
+```
+
+This populates `data/llm-eval/tasks/zeroshot/{operation_type}/{dataset_type}/{n-rule}/task__*.json`.
+
+### 3. Continue with the evaluation pipeline
+
+Proceed to [Step 1 — Configure your LLM](#step-1--configure-your-llm).
+
+---
+
+## Full Build: Build the Dataset from LOD Sources
 
 ### 1. Install dependencies
 
@@ -165,7 +192,7 @@ Single rule:
 python scripts/fetch-samples/1-rule/fetch_samples_rdfs2.py --date 20260418
 ```
 
-All 19 rule configurations:
+All 19 entailment patterns:
 
 ```bash
 for f in \
@@ -203,16 +230,12 @@ python scripts/build-dataset/standalone/gen_rva.py
 
 Output: `data/datasets/{family}/{1,2,3}-rule/dataset__*.json`
 
----
+### 5. Build zero-shot task files
 
-## LLM Evaluation Pipeline
-
-### Step 1 — Build zero-shot task files
-
-Generates prompt files from benchmark datasets for each inference operation type.
+Generates prompt files from the benchmark datasets for each prompt condition (PRT × Rule Format).
 
 ```bash
-# All operation types and dataset families
+# All prompt conditions and dataset families
 python scripts/llm-eval/tasks/build_zeroshot_tasks.py
 
 # Filtered example
@@ -234,7 +257,38 @@ python scripts/llm-eval/tasks/build_zeroshot_tasks.py \
 
 Output: `data/llm-eval/tasks/zeroshot/{operation_type}/{dataset_type}/{n-rule}/task__*.json`
 
-### Step 2 — Convert to request files
+### 6. Continue with the evaluation pipeline
+
+Proceed to [Step 1 — Configure your LLM](#step-1--configure-your-llm).
+
+---
+
+## LLM Evaluation Pipeline
+
+The shared pipeline used by both the Quick Start and Full Build paths above.
+
+### Step 1 — Configure your LLM
+
+Add your model entry to `scripts/llm-eval/model-config.json`. Each entry maps a model *slug* (used as the `--model` argument throughout the pipeline) to a `runner` and an `api_model`:
+
+```json
+{
+  "your-model-slug": {
+    "runner": "sequential-openai-compat",
+    "api_model": "provider/model-name"
+  }
+}
+```
+
+Supported `runner` values:
+
+| Runner | Used for |
+|---|---|
+| `openai-batch` | OpenAI Batch API (e.g. GPT-4o) |
+| `sequential-openai-compat` | Any OpenAI-compatible HTTP API (e.g. DeepInfra-hosted models) |
+| `sequential-ollama` | Local or remote Ollama daemon |
+
+### Step 2 — Build request files
 
 **OpenAI Batch API:**
 
@@ -258,29 +312,38 @@ Available models are defined in `scripts/llm-eval/model-config.json`. The `--mod
 
 ### Step 3 — Run LLM inference
 
-Each runner uses a dedicated queue base directory. Create a named subdirectory, place the request files inside, then run the script with `--queue <name>`.
+Each runner reads request files from a *queue directory* under `data/llm-eval/requests/input-queues/`. Pick the runner type matching your model, create a queue subdirectory, copy the request files generated in Step 2 into it, then invoke the runner with `--queue <name>`.
 
-```
-data/llm-eval/requests/input-queues/
-  openai-batch/
-    <queue-name>/   ← place batch__*.jsonl here
-  openai-compat/
-    <queue-name>/   ← place seq__*.jsonl here
-  ollama/
-    <queue-name>/   ← place seq__*.jsonl here
+#### OpenAI Batch
+
+Create a queue directory:
+
+```bash
+mkdir -p data/llm-eval/requests/input-queues/openai-batch/<queue-name>
 ```
 
-**OpenAI Batch:**
+Copy the request files into it:
+
+```bash
+cp data/llm-eval/requests/openai-batch/<model>/<op>/<ds>/*/batch__*.jsonl \
+   data/llm-eval/requests/input-queues/openai-batch/<queue-name>/
+```
+
+Upload the batches:
 
 ```bash
 python scripts/llm-eval/run/openai_batch_upload.py --queue <queue-name>
+```
+
+Re-run download until all batches are completed:
+
+```bash
 python scripts/llm-eval/run/openai_batch_download.py --queue <queue-name>
 ```
 
-The upload result is recorded in `input-queues/openai-batch/<queue-name>/upload_mapping.json`.
-Re-run download until all batches are completed.
+The upload result is recorded in `input-queues/openai-batch/<queue-name>/upload_mapping.json`. **Do not edit or delete this file** — `openai_batch_download.py` reads it to look up the batch IDs of the uploaded jobs.
 
-**Sequential (OpenAI-compatible API):**
+#### Sequential (OpenAI-compatible API)
 
 Targets models with `runner: "sequential-openai-compat"` in `model-config.json`.
 Requires the following variables in `.env`:
@@ -290,14 +353,44 @@ OPENAI_COMPAT_API_KEY=<your-api-key>
 OPENAI_COMPAT_BASE_URL=https://api.deepinfra.com/v1/openai
 ```
 
+Create a queue directory:
+
+```bash
+mkdir -p data/llm-eval/requests/input-queues/openai-compat/<queue-name>
+```
+
+Copy the request files into it:
+
+```bash
+cp data/llm-eval/requests/sequential/<model>/<op>/<ds>/*/seq__*.jsonl \
+   data/llm-eval/requests/input-queues/openai-compat/<queue-name>/
+```
+
+Run inference:
+
 ```bash
 python scripts/llm-eval/run/run_sequential_openai_compat.py --queue <queue-name>
 ```
 
-**Sequential (Ollama):**
+#### Sequential (Ollama)
 
 Targets models with `runner: "sequential-ollama"` in `model-config.json`.
 Requires a running Ollama daemon with the target model pulled.
+
+Create a queue directory:
+
+```bash
+mkdir -p data/llm-eval/requests/input-queues/ollama/<queue-name>
+```
+
+Copy the request files into it:
+
+```bash
+cp data/llm-eval/requests/sequential/<model>/<op>/<ds>/*/seq__*.jsonl \
+   data/llm-eval/requests/input-queues/ollama/<queue-name>/
+```
+
+Run inference:
 
 ```bash
 python scripts/llm-eval/run/run_sequential_ollama.py --queue <queue-name>
@@ -336,15 +429,31 @@ Output: `data/llm-eval/responses/sequential/{slug}/{operation_type}/{dataset_typ
 
 By default, all response types (`openai-batch`, `sequential`, etc.) under `data/llm-eval/responses/` are evaluated together.
 
+#### Strict mode (default)
+
+Only the canonical `<s, p, o>` format is accepted as a valid triple.
+
 ```bash
-# strict mode (default): only canonical <s, p, o> format accepted
 python scripts/llm-eval/eval/evaluate_outputs.py --mode strict
+```
 
-# flex mode: order-based matching; accepts <s,p,o>, <s p o>, <X rdf:type Y>, etc.
+#### Flex mode
+
+Order-based matching. Accepts common spacing variations such as `<s,p,o>`, `<s , p , o>`, and `<s p o>`.
+
+```bash
 python scripts/llm-eval/eval/evaluate_outputs.py --mode flex
+```
 
-# evaluate a specific response type only
+#### Filter by response type
+
+Use `--response-type` to evaluate a single response type:
+
+```bash
 python scripts/llm-eval/eval/evaluate_outputs.py --mode strict --response-type sequential
+```
+
+```bash
 python scripts/llm-eval/eval/evaluate_outputs.py --mode strict --response-type openai-batch
 ```
 
@@ -405,7 +514,27 @@ Output: `data/llm-eval/reports/budget_estimate.xlsx`
 Input tokens are counted from the prompt messages in each request file.
 Output tokens are estimated from `expected_output` in the corresponding task file (ARP operations also include the expected `[used_rules: ...]` line).
 
-Pricing is configured in `scripts/llm-eval/model-pricing.json` (USD per 1M tokens). Edit this file to update rates before running.
+#### Configuring per-model pricing
+
+Pricing is loaded from `scripts/llm-eval/model-pricing.json`. Each entry maps a model slug to per-1M-token rates in USD:
+
+```json
+{
+  "your-model-slug": {
+    "input_per_1m": 0.075,
+    "output_per_1m": 0.30
+  }
+}
+```
+
+| Field | Unit | Description |
+|---|---|---|
+| `input_per_1m` | USD per 1M tokens | Price for prompt (input) tokens |
+| `output_per_1m` | USD per 1M tokens | Price for completion (output) tokens |
+
+Set both fields to `0.0` for local or free models. Edit the file before running `estimate_budget.py` to reflect current rates.
+
+> **Caveat for reasoning models.** The estimator counts only the visible prompt and expected-output tokens; it **does not** account for hidden internal reasoning tokens that some models (e.g. gpt-oss series) bill separately. When budgeting for a reasoning model, run a small-scale pilot first and extrapolate from the actual usage reported by the API.
 
 ### Step 5 — Aggregate scores
 
@@ -416,7 +545,9 @@ python scripts/llm-eval/report/aggregate_scores.py --mode flex
 
 Output: `data/llm-eval/reports/{strict,flex}/scores-{mode}.csv`
 
-### Step 6 — Export to Excel
+### Step 6 — Export per-model score sheets
+
+Splits the aggregated CSV from Step 5 into one Excel workbook per model, with a separate sheet for each prompt condition (NRP-full, ARP-name, etc.).
 
 ```bash
 python scripts/llm-eval/report/export_excel.py --mode strict
@@ -434,20 +565,40 @@ python scripts/llm-eval/report/compute_composite_metrics.py --mode flex
 
 Output: `data/llm-eval/reports/{strict,flex}/composite_metrics-{mode}.csv`
 
+Output columns:
+
+| Column | Full name |
+|---|---|
+| `RI` | Real-world Inference |
+| `SI` | Structural Inference |
+| `RRS` | Real-world Rule Selection |
+| `SRS` | Structural Rule Selection |
+| `VR` | Vocabulary Robustness |
+| `TR` | Typographic Robustness |
+| `RDI` | Rule Definition Independence |
+
+See the paper for the precise definition of each metric.
+
 ### (Optional) Scaling analysis
 
-How F1 changes across 1-rule / 2-rule / 3-rule (rule_info == "full" only):
+How F1 changes across 1-rule / 2-rule / 3-rule, computed separately for each rule format (full / def / name):
 
 ```bash
 python scripts/llm-eval/report/analyze_scaling.py --mode strict
 python scripts/llm-eval/report/analyze_scaling.py --mode flex
 ```
 
-Output: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx` (one sheet per dataset type)
+Output: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx`. The workbook contains one sheet per (Rule Format × dataset_type) combination, with the following sheet name pattern:
+
+| Rule Format | Sheet name | Examples |
+|---|---|---|
+| `full` | `<dataset_type>` | `rk`, `ls`, `ns`, ... |
+| `def` | `<dataset_type>-def` | `rk-def`, `ls-def`, ... |
+| `name` | `<dataset_type>-name` | `rk-name`, `ls-name`, ... |
 
 ### (Optional) Rule-level analysis
 
-Per-rule F1 breakdown using only single-rule scenarios (n_rule == 1, rule_info == "full"). Multi-rule scenarios are excluded so that each rule's score reflects its intrinsic difficulty without contamination from other rules in chained patterns.
+Per-rule F1 breakdown computed only from single-rule entailment patterns under the `full` Rule Format.
 
 ```bash
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode strict
@@ -469,22 +620,36 @@ Output: `data/llm-eval/reports/{strict,flex}/f1_by_dataset-{mode}.xlsx`
 
 ---
 
-## Evaluation Modes
-
-Two evaluation modes are supported, selectable via `--mode` in Steps 4–7.
-
-| Mode | Description |
-|---|---|
-| `strict` | Only the canonical `<s, p, o>` format (comma + space separated) is accepted as a valid triple. Measures both reasoning ability and format compliance. |
-| `flex` | Accepts any `<...>` token that contains s, p, o in order, separated only by `,`, ` `, or `<>` characters. Handles variants like `<s,p,o>`, `<s p o>`, `<X rdf:type Y>`. Measures reasoning ability independent of format compliance. |
-
-The difference between strict and flex scores quantifies the impact of output format non-compliance.
-
----
-
 ## Data Format
 
+### LOD sample (`data/lod-samples/`)
+
+Raw SPARQL query result for one rule. The `entries` array contains the variable bindings extracted from the endpoint.
+
+```json
+{
+  "metadata": {
+    "endpoints": ["https://dbpedia.org/sparql"],
+    "fetched_at": "20241216",
+    "rule": "rdfs9",
+    "source": "dbp",
+    "limit": 400,
+    "fetch_uid": "f-1862e2be",
+    "count": 400
+  },
+  "entries": [
+    {
+      "a": "http://dbpedia.org/resource/Toll-like_receptor_5",
+      "x": "http://dbpedia.org/ontology/Gene",
+      "y": "http://dbpedia.org/ontology/Biomolecule"
+    }
+  ]
+}
+```
+
 ### Dataset entry (`data/datasets/`)
+
+Premise / expected-output pairs ready for prompt construction.
 
 ```json
 {
@@ -506,6 +671,8 @@ The difference between strict and flex scores quantifies the impact of output fo
 
 ### Task file (`data/llm-eval/tasks/zeroshot/`)
 
+Per-prompt-condition task file with rendered prompts.
+
 ```json
 {
   "metadata": {
@@ -523,6 +690,61 @@ The difference between strict and flex scores quantifies the impact of output fo
       "expected_output": "<Alice, rdf:type, Person>"
     }
   ]
+}
+```
+
+### Request file — sequential (`data/llm-eval/requests/sequential/`)
+
+JSON Lines, one record per request.
+
+```json
+{"id": "request-1", "model": "openai/gpt-oss-120b", "input": "Given the following rule and premise knowledge: ..."}
+```
+
+### Request file — OpenAI Batch (`data/llm-eval/requests/openai-batch/`)
+
+JSON Lines in OpenAI Batch API format.
+
+```json
+{
+  "custom_id": "request-1",
+  "method": "POST",
+  "url": "/v1/chat/completions",
+  "body": {
+    "model": "gpt-4o-2024-08-06",
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "Given the following rule and premise knowledge: ..."}
+    ]
+  }
+}
+```
+
+### Response file (`data/llm-eval/responses/`)
+
+JSON Lines, one record per response. Reasoning models additionally include a `reasoning_content` field.
+
+```json
+{"id": "request-1", "response": "<Alice, rdf:type, Person>"}
+```
+
+### Evaluation result (`data/llm-eval/eval/`)
+
+JSON Lines, one record per evaluated request. Per-task precision / recall / F1 are recorded along with the parsed and filtered triples.
+
+```json
+{
+  "task_id": "request-1",
+  "premise_knowledge": "<hasJob, rdfs:domain, Person>, <Alice, hasJob, Engineer>",
+  "expected_output": "<Alice, rdf:type, Person>",
+  "model_output": "<Alice, rdf:type, Person>",
+  "expected_triples": ["Alice, rdf:type, Person"],
+  "filtered_triples": ["Alice, rdf:type, Person"],
+  "precision_triple": 1.0,
+  "recall_triple": 1.0,
+  "f1_triple": 1.0,
+  "triple_ok": true,
+  "overall_ok": true
 }
 ```
 
