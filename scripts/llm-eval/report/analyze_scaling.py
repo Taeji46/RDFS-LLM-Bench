@@ -1,15 +1,18 @@
 """Scaling analysis: how f1_triple changes across 1-rule / 2-rule / 3-rule.
 
-Filters to rule_info == "full" only.
 Averages f1_triple per (dataset_type, model, operation_family, n_rule)
-across all rule_ids.
+across all rule_ids, separately for each rule_info ∈ {full, def, name}.
 
 Valid (operation_family, n_rule) combinations:
   NRP: 1, 2, 3
   ARP: 1, 2, 3
 
-One sheet per dataset type (rk / ls / gs / gsc / ns / nsc / rva).
-Each sheet: rows = (operation_family, n_rule), columns = models.
+Sheets (one per (rule_info, dataset_type) combination, when data exists):
+  - rule_info == "full":  rk / ls / gs / gsc / ns / nsc / rva
+  - rule_info == "def":   rk-def / ls-def / gs-def / gsc-def / ns-def / nsc-def / rva-def
+  - rule_info == "name":  rk-name / ls-name / gs-name / gsc-name / ns-name / nsc-name / rva-name
+
+Cells without experimental data appear blank (e.g., gpt-oss × name on rk).
 
 Reads:  data/llm-eval/reports/{mode}/scores-{mode}.csv
 Writes: data/llm-eval/reports/{mode}/scaling_analysis-{mode}.xlsx
@@ -37,6 +40,7 @@ VALID_COMBOS = {
     "ARP": [1, 2, 3],
 }
 DATASET_TYPES = ["rk", "ls", "gs", "gsc", "ns", "nsc", "rva"]
+RULE_INFOS = ["full", "def", "name"]
 
 
 def _relpath(p: Path) -> str:
@@ -58,18 +62,26 @@ def load_scores(csv_path: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
-def compute(records: list[dict]) -> dict[str, dict[str, dict[tuple[str, int], float | None]]]:
-    """Returns {dataset_type: {model: {(family, n_rule): mean_f1}}}."""
+def compute(
+    records: list[dict], rule_info_filter: str = "full", dataset_filter: list[str] | None = None
+) -> dict[str, dict[str, dict[tuple[str, int], float | None]]]:
+    """Returns {dataset_type: {model: {(family, n_rule): mean_f1}}}.
+
+    Filters records by rule_info (default "full") and optionally by dataset_type.
+    """
+    datasets = dataset_filter if dataset_filter is not None else DATASET_TYPES
     buckets: dict[tuple[str, str, str, int], list[float]] = defaultdict(list)
 
     for rec in records:
-        if rec.get("rule_info") != "full":
+        if rec.get("rule_info") != rule_info_filter:
             continue
         f1 = _float(rec.get("f1_triple", ""))
         if f1 is None:
             continue
         model = rec["model"]
         ds = rec["dataset_type"]
+        if ds not in datasets:
+            continue
         family = rec["operation_family"]
         n_rule = int(rec["n_rule"])
         if family not in FAMILIES:
@@ -80,7 +92,7 @@ def compute(records: list[dict]) -> dict[str, dict[str, dict[tuple[str, int], fl
 
     models = sorted({k[1] for k in buckets})
     result: dict[str, dict[str, dict[tuple[str, int], float | None]]] = {}
-    for ds in DATASET_TYPES:
+    for ds in datasets:
         result[ds] = {}
         for model in models:
             result[ds][model] = {}
@@ -138,10 +150,29 @@ def _write_sheet(wb: openpyxl.Workbook, title: str, ds_data: dict[str, dict[tupl
     ws.freeze_panes = "C2"
 
 
-def write_excel(data: dict[str, dict[str, dict[tuple[str, int], float | None]]], out_path: Path) -> None:
+def write_excel(
+    data_by_info: dict[str, dict[str, dict[str, dict[tuple[str, int], float | None]]]],
+    out_path: Path,
+) -> None:
+    """data_by_info: {rule_info: {dataset_type: {model: {(family, n_rule): f1}}}}."""
     wb = openpyxl.Workbook()
-    for i, ds in enumerate(DATASET_TYPES):
-        _write_sheet(wb, ds, data[ds], first=(i == 0))
+    first = True
+    for ri in RULE_INFOS:
+        ds_data_by_ds = data_by_info.get(ri, {})
+        for ds in DATASET_TYPES:
+            ds_data = ds_data_by_ds.get(ds, {})
+            if not ds_data:
+                continue
+            # Skip sheet if all cells empty (no model has any data)
+            has_data = any(
+                any(v is not None for v in m.values())
+                for m in ds_data.values()
+            )
+            if not has_data:
+                continue
+            title = ds if ri == "full" else f"{ds}-{ri}"
+            _write_sheet(wb, title, ds_data, first=first)
+            first = False
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
@@ -166,17 +197,30 @@ def main() -> int:
         return 1
 
     records = load_scores(csv_path)
-    data = compute(records)
+    data_by_info = {
+        ri: compute(records, rule_info_filter=ri) for ri in RULE_INFOS
+    }
 
-    for ds in DATASET_TYPES:
-        print(f"[{ds}]")
-        for family in FAMILIES:
-            for n_rule in VALID_COMBOS[family]:
-                vals = {m: data[ds][m].get((family, n_rule)) for m in sorted(data[ds])}
-                row_str = "  ".join(f"{m}={v:.4f}" if v is not None else f"{m}=N/A" for m, v in vals.items())
-                print(f"  {family} {n_rule}-rule: {row_str}")
+    for ri in RULE_INFOS:
+        for ds in DATASET_TYPES:
+            ds_data = data_by_info[ri].get(ds, {})
+            if not ds_data:
+                continue
+            has_data = any(
+                any(v is not None for v in m.values())
+                for m in ds_data.values()
+            )
+            if not has_data:
+                continue
+            label = ds if ri == "full" else f"{ds}-{ri}"
+            print(f"[{label}]")
+            for family in FAMILIES:
+                for n_rule in VALID_COMBOS[family]:
+                    vals = {m: ds_data[m].get((family, n_rule)) for m in sorted(ds_data)}
+                    row_str = "  ".join(f"{m}={v:.4f}" if v is not None else f"{m}=N/A" for m, v in vals.items())
+                    print(f"  {family} {n_rule}-rule: {row_str}")
 
-    write_excel(data, out_path)
+    write_excel(data_by_info, out_path)
     return 0
 
 
