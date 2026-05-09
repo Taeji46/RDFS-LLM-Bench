@@ -13,8 +13,8 @@ Inference ability:
   SI  (Structural Inference)    : f1_triple on NS, across NRP/ARP × n_rule
 
 Rule selection ability:
-  RRS (Real-world Rule Selection): f1_rule on RK, across ARP-full/ARP-name × n_rule
-  SRS (Structural Rule Selection): f1_rule on NS, across ARP-full/ARP-name × n_rule
+  RRS (Real-world Rule Selection): f1_rule on RK, across ARP-full × n_rule
+  SRS (Structural Rule Selection): f1_rule on NS, across ARP-full × n_rule
 
 Robustness:
   VR  (Vocabulary Robustness)   : mean min(1, GSC/NSC) across NRP/ARP × n_rule

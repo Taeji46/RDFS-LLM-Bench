@@ -7,8 +7,8 @@ Cell values:
   - = no task file (combination structurally undefined, e.g. rdfs5 on gs/gsc)
 
 Composite-metric-relevant cells are highlighted with a hatched fill:
-  - NRP-full, ARP-full: all dataset columns where task exists
-  - NRP-name × 1-rule: ns column only
+  - NRP-full, ARP-full: rk/ns/gs/gsc/nsc columns (RI/SI/RRS/SRS/VR/TR)
+  - NRP-name, ARP-name: ns column only (RDI)
 
 Reads tasks from:
   data/llm-eval/tasks/zeroshot/{op}/{dataset}/{n-rule}/task__*.json
@@ -63,10 +63,14 @@ def _rule_sort_key(rule_id: str) -> tuple:
 
 
 def _is_composite_cell(op_type: str, rule_id: str, ds_type: str) -> bool:
-    """Returns True if this specific cell is needed for composite metrics."""
+    """Returns True if this specific cell is needed for composite metrics.
+
+    - RI/SI/RRS/SRS/VR/TR use NRP-full and ARP-full on rk/ns/gs/gsc/nsc.
+    - RDI uses NRP-name and ARP-name on ns (across all 1/2/3-rule combos).
+    """
     if op_type in COMPOSITE_FULL_OPS:
         return ds_type in {"rk", "ns", "gs", "gsc", "nsc"}
-    if op_type == "NRP-name" and _n_rule(rule_id) == 1:
+    if op_type in {"NRP-name", "ARP-name"}:
         return ds_type == "ns"
     return False
 
