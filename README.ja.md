@@ -16,7 +16,7 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 
 - [概要](#概要)
 - [RDFS 含意ルール](#rdfs-含意ルール)
-- [データセット系列](#データセット系列)
+- [データセット種類](#データセット種類)
 - [Presented Rule Type と Rule Format](#presented-rule-type-と-rule-format)
 - [ディレクトリ構成](#ディレクトリ構成)
 - [クイックスタート: 既存データセットで LLM を評価する](#クイックスタート-既存ベンチマークでllmを評価する) — 既成のデータセットを使う
@@ -54,9 +54,9 @@ RDFS-LLM-Bench は LLM の RDFS 推論能力を体系的に評価するための
 
 ---
 
-## データセット系列
+## データセット種類
 
-| 系列 | ソース | 説明 |
+| 種類 | ソース | 説明 |
 |---|---|---|
 | `rk` | LOD サンプル | DBpedia/Wikidata/schema.org の実世界トリプルをそのまま使用 |
 | `ls` | LOD サンプル | ローカルシャッフル: エントリ内でリソースをスワップ・デレンジ |
@@ -119,31 +119,31 @@ scripts/
 
 data/
   lod-samples/
-    {1,2,3}-rule/     lod-sample__{rule}__n{N}__f-xxxxxxxx.json
+    {1,2,3}-rule/     lod-sample__{pattern_id}__n{N}__f-xxxxxxxx.json
   datasets/
     {rk,ls,gs,gsc,ns,nsc,rva}/
-      {1,2,3}-rule/   dataset__{type}__{rule}__n{N}__f-xxxxxxxx__b-xxxxxxxx.json
+      {1,2,3}-rule/   dataset__{dataset_variant}__{pattern_id}__n{N}__f-xxxxxxxx__b-xxxxxxxx.json
   llm-eval/
     tasks/
       zeroshot/
         {prompting_condition}/{dataset_variant}/{n-rule}/
-                        task__{op}__{type}__{rule}__n{N}__...json
+                        task__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...json
     requests/
       openai-batch/
         {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
-                        batch__{model-slug}__{op}__{type}__{rule}__n{N}__...jsonl
+                        batch__{model-slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...jsonl
       sequential/
         {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
-                        seq__{model-slug}__{op}__{type}__{rule}__n{N}__...jsonl
+                        seq__{model-slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...jsonl
     responses/
       openai-batch/
         {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
-                        response__{model-slug}__{op}__{type}__{rule}__n{N}__...
+                        response__{model-slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...
                           __batch_{batch-id}__{YYYYMMDDHHMMSS}.jsonl
     eval/
       {strict,flex}/
         {response_type}/{model}/{prompting_condition}/{dataset_variant}/{n-rule}/
-                        eval-{mode}__{model}__{op}__{type}__{rule}__n{N}__...jsonl
+                        eval-{mode}__{model}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...jsonl
     reports/
       {strict,flex}/
                         scores-{mode}.csv
@@ -218,7 +218,7 @@ scripts/build-dataset/lod-sample-config.json
 ### 4. ベンチマークデータセットの生成
 
 ```bash
-# 全系列を一括生成
+# 全種類を一括生成
 python scripts/build-dataset/run_all.py
 
 # 個別に生成する場合
@@ -230,14 +230,14 @@ python scripts/build-dataset/standalone/gen_nsc.py
 python scripts/build-dataset/standalone/gen_rva.py
 ```
 
-出力先: `data/datasets/{系列}/{1,2,3}-rule/dataset__*.json`
+出力先: `data/datasets/{dataset_variant}/{1,2,3}-rule/dataset__*.json`
 
 ### 5. ゼロショットタスクファイルの生成
 
 生成したデータセットから、各プロンプト条件（PRT × Rule Format）のプロンプトファイルを作ります。
 
 ```bash
-# 全操作タイプ・全データセット系列
+# 全プロンプト条件・全データセット種類
 python scripts/llm-eval/tasks/build_zeroshot_tasks.py
 
 # 絞り込みの例
@@ -327,7 +327,7 @@ mkdir -p data/llm-eval/requests/input-queues/openai-batch/<queue-name>
 リクエストファイルをコピー:
 
 ```bash
-cp data/llm-eval/requests/openai-batch/<model>/<op>/<ds>/*/batch__*.jsonl \
+cp data/llm-eval/requests/openai-batch/<model>/<prompting_condition>/<dataset_variant>/*/batch__*.jsonl \
    data/llm-eval/requests/input-queues/openai-batch/<queue-name>/
 ```
 
@@ -364,7 +364,7 @@ mkdir -p data/llm-eval/requests/input-queues/openai-compat/<queue-name>
 リクエストファイルをコピー:
 
 ```bash
-cp data/llm-eval/requests/sequential/<model>/<op>/<ds>/*/seq__*.jsonl \
+cp data/llm-eval/requests/sequential/<model>/<prompting_condition>/<dataset_variant>/*/seq__*.jsonl \
    data/llm-eval/requests/input-queues/openai-compat/<queue-name>/
 ```
 
@@ -388,7 +388,7 @@ mkdir -p data/llm-eval/requests/input-queues/ollama/<queue-name>
 リクエストファイルをコピー:
 
 ```bash
-cp data/llm-eval/requests/sequential/<model>/<op>/<ds>/*/seq__*.jsonl \
+cp data/llm-eval/requests/sequential/<model>/<prompting_condition>/<dataset_variant>/*/seq__*.jsonl \
    data/llm-eval/requests/input-queues/ollama/<queue-name>/
 ```
 
@@ -482,7 +482,7 @@ python scripts/llm-eval/report/export_status_excel.py --overwrite
 
 出力先: `data/llm-eval/reports/status.xlsx`（モデルごとに1シート）
 
-各セルは (op-type, rule-id, dataset-type) の組み合わせの状態を示します：
+各セルは (prompting_condition, pattern_id, dataset_variant) の組み合わせの状態を示します：
 
 | 記号 | 意味 |
 |------|------|
@@ -511,7 +511,7 @@ python scripts/llm-eval/run/estimate_budget.py --overwrite
 出力先: `data/llm-eval/reports/budget_estimate.xlsx`
 
 - **Summary シート** — モデルごとの合計トークン数と推定コスト
-- **Detail シート** — (モデル, op-type, データセット, ルール) 単位の内訳
+- **Detail シート** — (model, prompting_condition, dataset_variant, pattern_id) 単位の内訳
 
 input トークンはリクエストファイルのプロンプトメッセージから計算します。
 output トークンはタスクファイルの `expected_output` から推定します（ARP 系は `[used_rules: ...]` 行も含む）。
@@ -607,11 +607,11 @@ python scripts/llm-eval/report/analyze_rule_accuracy.py --mode strict
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode flex
 ```
 
-出力先: `data/llm-eval/reports/{strict,flex}/rule_accuracy_analysis-{mode}.xlsx`（データセット種別ごとに1シート）
+出力先: `data/llm-eval/reports/{strict,flex}/rule_accuracy_analysis-{mode}.xlsx`（データセット種類ごとに1シート）
 
 ### （任意）データセット別 F1 集計
 
-`full` 設定のみ、6セル（NRP/ARP × {1-rule, 2-rule, 3-rule}）の平均 F1 を、行=LLM・列=データセット種別の単一表にまとめます：
+`full` 設定のみ、6セル（NRP/ARP × {1-rule, 2-rule, 3-rule}）の平均 F1 を、行=LLM・列=データセット種類の単一表にまとめます：
 
 ```bash
 python scripts/llm-eval/report/f1_by_dataset_table.py --mode strict
@@ -756,13 +756,13 @@ JSON Lines 形式。1 リクエストあたり 1 行で、precision / recall / F
 
 | ファイル種別 | パターン |
 |---|---|
-| LOD サンプル | `lod-sample__{rule}__n{N}__f-{uid}.json` |
-| データセット | `dataset__{type}__{rule}__n{N}__f-{uid}__b-{uid}.json` |
-| タスク | `task__{op}__{type}__{rule}__n{N}__{uid}__{uid}.json` |
-| バッチリクエスト | `batch__{slug}__{op}__{type}__{rule}__n{N}__{uid}__{uid}.jsonl` |
-| 逐次リクエスト | `seq__{slug}__{op}__{type}__{rule}__n{N}__{uid}__{uid}.jsonl` |
-| バッチレスポンス | `response__{slug}__{op}__{type}__{rule}__n{N}__{uid}__{uid}__batch_{id}__{ts}.jsonl` |
-| 評価結果 | `eval-{mode}__{slug}__{op}__{type}__{rule}__n{N}__{uid}__{uid}__batch_{id}__{ts}.jsonl` |
+| LOD サンプル | `lod-sample__{pattern_id}__n{N}__f-{uid}.json` |
+| データセット | `dataset__{dataset_variant}__{pattern_id}__n{N}__f-{uid}__b-{uid}.json` |
+| タスク | `task__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}.json` |
+| バッチリクエスト | `batch__{slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}.jsonl` |
+| 逐次リクエスト | `seq__{slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}.jsonl` |
+| バッチレスポンス | `response__{slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}__batch_{id}__{ts}.jsonl` |
+| 評価結果 | `eval-{mode}__{slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}__batch_{id}__{ts}.jsonl` |
 
 UID プレフィックス: `f-` = fetch/ソース（LOD系データセット）, `b-` = build  
 `{slug}` = `model-config.json` で定義したモデルスラグ  

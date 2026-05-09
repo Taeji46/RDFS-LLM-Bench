@@ -16,7 +16,7 @@ Japanese version: [README.ja.md](README.ja.md)
 
 - [Overview](#overview)
 - [RDFS Entailment Rules](#rdfs-entailment-rules)
-- [Dataset Families](#dataset-families)
+- [Dataset Variants](#dataset-variants)
 - [Presented Rule Types and Rule Formats](#presented-rule-types-and-rule-formats)
 - [Directory Layout](#directory-layout)
 - [Quick Start: Evaluate an LLM](#quick-start-evaluate-an-llm) — use the pre-built dataset
@@ -35,7 +35,7 @@ RDFS-LLM-Bench systematically evaluates how well LLMs can perform RDFS-based rea
 The benchmark covers 6 core RDFS entailment rules (rdfs2, rdfs3, rdfs5, rdfs7, rdfs9,
 rdfs11) and 13 multi-rule combinations, yielding 19 entailment patterns in total
 (6 single-rule + 7 two-rule + 6 three-rule). It evaluates LLMs across 7 dataset
-families under 2 presented rule types × 3 rule formats (= 6 prompt conditions).
+variants under 2 presented rule types × 3 rule formats (= 6 prompt conditions).
 
 ---
 
@@ -54,9 +54,9 @@ Multi-rule entailment patterns (13 = 7 two-rule + 6 three-rule): rdfs2\_3, rdfs2
 
 ---
 
-## Dataset Families
+## Dataset Variants
 
-| Family | Source | Description |
+| Variant | Source | Description |
 |---|---|---|
 | `rk` | LOD samples | Raw real-world triples from DBpedia/Wikidata/schema.org |
 | `ls` | LOD samples | Local shuffle: resources swapped/deranged within each entry |
@@ -119,31 +119,31 @@ scripts/
 
 data/
   lod-samples/
-    {1,2,3}-rule/     lod-sample__{rule}__n{N}__f-xxxxxxxx.json
+    {1,2,3}-rule/     lod-sample__{pattern_id}__n{N}__f-xxxxxxxx.json
   datasets/
     {rk,ls,gs,gsc,ns,nsc,rva}/
-      {1,2,3}-rule/   dataset__{type}__{rule}__n{N}__f-xxxxxxxx__b-xxxxxxxx.json
+      {1,2,3}-rule/   dataset__{dataset_variant}__{pattern_id}__n{N}__f-xxxxxxxx__b-xxxxxxxx.json
   llm-eval/
     tasks/
       zeroshot/
         {prompting_condition}/{dataset_variant}/{n-rule}/
-                        task__{op}__{type}__{rule}__n{N}__...json
+                        task__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...json
     requests/
       openai-batch/
         {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
-                        batch__{model-slug}__{op}__{type}__{rule}__n{N}__...jsonl
+                        batch__{model-slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...jsonl
       sequential/
         {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
-                        seq__{model-slug}__{op}__{type}__{rule}__n{N}__...jsonl
+                        seq__{model-slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...jsonl
     responses/
       openai-batch/
         {model-slug}/{prompting_condition}/{dataset_variant}/{n-rule}/
-                        response__{model-slug}__{op}__{type}__{rule}__n{N}__...
+                        response__{model-slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...
                           __batch_{batch-id}__{YYYYMMDDHHMMSS}.jsonl
     eval/
       {strict,flex}/
         {response_type}/{model}/{prompting_condition}/{dataset_variant}/{n-rule}/
-                        eval-{mode}__{model}__{op}__{type}__{rule}__n{N}__...jsonl
+                        eval-{mode}__{model}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...jsonl
     reports/
       {strict,flex}/
                         scores-{mode}.csv
@@ -218,10 +218,10 @@ scripts/build-dataset/lod-sample-config.json
 ### 4. Build benchmark datasets
 
 ```bash
-# All families at once
+# All variants at once
 python scripts/build-dataset/run_all.py
 
-# Or individual families
+# Or individual variants
 python scripts/build-dataset/from-samples/gen_rk.py
 python scripts/build-dataset/from-samples/gen_ls.py
 python scripts/build-dataset/from-samples/gen_gs-gsc.py
@@ -230,14 +230,14 @@ python scripts/build-dataset/standalone/gen_nsc.py
 python scripts/build-dataset/standalone/gen_rva.py
 ```
 
-Output: `data/datasets/{family}/{1,2,3}-rule/dataset__*.json`
+Output: `data/datasets/{dataset_variant}/{1,2,3}-rule/dataset__*.json`
 
 ### 5. Build zero-shot task files
 
 Generates prompt files from the benchmark datasets for each prompt condition (PRT × Rule Format).
 
 ```bash
-# All prompt conditions and dataset families
+# All prompt conditions and dataset variants
 python scripts/llm-eval/tasks/build_zeroshot_tasks.py
 
 # Filtered example
@@ -327,7 +327,7 @@ mkdir -p data/llm-eval/requests/input-queues/openai-batch/<queue-name>
 Copy the request files into it:
 
 ```bash
-cp data/llm-eval/requests/openai-batch/<model>/<op>/<ds>/*/batch__*.jsonl \
+cp data/llm-eval/requests/openai-batch/<model>/<prompting_condition>/<dataset_variant>/*/batch__*.jsonl \
    data/llm-eval/requests/input-queues/openai-batch/<queue-name>/
 ```
 
@@ -364,7 +364,7 @@ mkdir -p data/llm-eval/requests/input-queues/openai-compat/<queue-name>
 Copy the request files into it:
 
 ```bash
-cp data/llm-eval/requests/sequential/<model>/<op>/<ds>/*/seq__*.jsonl \
+cp data/llm-eval/requests/sequential/<model>/<prompting_condition>/<dataset_variant>/*/seq__*.jsonl \
    data/llm-eval/requests/input-queues/openai-compat/<queue-name>/
 ```
 
@@ -388,7 +388,7 @@ mkdir -p data/llm-eval/requests/input-queues/ollama/<queue-name>
 Copy the request files into it:
 
 ```bash
-cp data/llm-eval/requests/sequential/<model>/<op>/<ds>/*/seq__*.jsonl \
+cp data/llm-eval/requests/sequential/<model>/<prompting_condition>/<dataset_variant>/*/seq__*.jsonl \
    data/llm-eval/requests/input-queues/ollama/<queue-name>/
 ```
 
@@ -482,7 +482,7 @@ python scripts/llm-eval/report/export_status_excel.py --overwrite
 
 Output: `data/llm-eval/reports/status.xlsx` (one sheet per model)
 
-Each cell shows the status for a (op-type, rule-id, dataset-type) combination:
+Each cell shows the status for a (prompting_condition, pattern_id, dataset_variant) combination:
 
 | Symbol | Meaning |
 |--------|---------|
@@ -511,7 +511,7 @@ python scripts/llm-eval/run/estimate_budget.py --overwrite
 Output: `data/llm-eval/reports/budget_estimate.xlsx`
 
 - **Summary sheet** — total input/output tokens and estimated cost per model
-- **Detail sheet** — breakdown per (model, op-type, dataset, rule)
+- **Detail sheet** — breakdown per (model, prompting_condition, dataset_variant, pattern_id)
 
 Input tokens are counted from the prompt messages in each request file.
 Output tokens are estimated from `expected_output` in the corresponding task file (ARP operations also include the expected `[used_rules: ...]` line).
@@ -607,7 +607,7 @@ python scripts/llm-eval/report/analyze_rule_accuracy.py --mode strict
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode flex
 ```
 
-Output: `data/llm-eval/reports/{strict,flex}/rule_accuracy_analysis-{mode}.xlsx` (one sheet per dataset type)
+Output: `data/llm-eval/reports/{strict,flex}/rule_accuracy_analysis-{mode}.xlsx` (one sheet per dataset variant)
 
 ### (Optional) F1 by dataset variant
 
@@ -756,13 +756,13 @@ JSON Lines, one record per evaluated request. Per-task precision / recall / F1 a
 
 | File type | Pattern |
 |---|---|
-| LOD sample | `lod-sample__{rule}__n{N}__f-{uid}.json` |
-| Dataset | `dataset__{type}__{rule}__n{N}__f-{uid}__b-{uid}.json` |
-| Task | `task__{op}__{type}__{rule}__n{N}__{uid}__{uid}.json` |
-| Batch request | `batch__{slug}__{op}__{type}__{rule}__n{N}__{uid}__{uid}.jsonl` |
-| Sequential request | `seq__{slug}__{op}__{type}__{rule}__n{N}__{uid}__{uid}.jsonl` |
-| Batch response | `response__{slug}__{op}__{type}__{rule}__n{N}__{uid}__{uid}__batch_{id}__{ts}.jsonl` |
-| Eval result | `eval-{mode}__{slug}__{op}__{type}__{rule}__n{N}__{uid}__{uid}__batch_{id}__{ts}.jsonl` |
+| LOD sample | `lod-sample__{pattern_id}__n{N}__f-{uid}.json` |
+| Dataset | `dataset__{dataset_variant}__{pattern_id}__n{N}__f-{uid}__b-{uid}.json` |
+| Task | `task__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}.json` |
+| Batch request | `batch__{slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}.jsonl` |
+| Sequential request | `seq__{slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}.jsonl` |
+| Batch response | `response__{slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}__batch_{id}__{ts}.jsonl` |
+| Eval result | `eval-{mode}__{slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}__batch_{id}__{ts}.jsonl` |
 
 UIDs: `f-` = fetch/source (LOD-based datasets), `b-` = build  
 `{slug}` = model slug defined in `model-config.json`  
