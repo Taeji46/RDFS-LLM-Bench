@@ -10,6 +10,7 @@ from collections import defaultdict
 from _base import DBP_ENDPOINT, WDT_ENDPOINT, PROJECT_ROOT, all_distinct, balanced_sample, fetch_wdt_equivalent_dbp_properties, get_fetch_args, parse_bindings, query_hash, run_sparql, save_benchmark_sample
 
 RULE = "rdfs3_7"
+RULES = ['rdfs3', 'rdfs7']
 SOURCE = "wdt"
 GROUP_BY = "j"
 DEFAULT_LIMIT = 400
@@ -88,7 +89,8 @@ if __name__ == "__main__":
     metadata = {
         "endpoints": [WDT_ENDPOINT, DBP_ENDPOINT],
         "fetched_at": args.date,
-        "rule": RULE,
+        "pattern_id": RULE,
+        "rules": RULES,
         "source": SOURCE,
         "group_by": GROUP_BY,
         "limit": DEFAULT_LIMIT,

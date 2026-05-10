@@ -9,6 +9,7 @@ from collections import defaultdict
 from _base import DBP_ENDPOINT, PROJECT_ROOT, all_distinct, get_fetch_args, parse_bindings, query_hash, run_sparql, save_benchmark_sample
 
 RULE = "rdfs2_7"
+RULES = ['rdfs2', 'rdfs7']
 SOURCE = "dbp"
 GROUP_BY = "jx"
 DEFAULT_LIMIT = 400
@@ -63,7 +64,8 @@ if __name__ == "__main__":
     metadata = {
         "endpoints": [DBP_ENDPOINT],
         "fetched_at": args.date,
-        "rule": RULE,
+        "pattern_id": RULE,
+        "rules": RULES,
         "source": SOURCE,
         "group_by": GROUP_BY,
         "limit": DEFAULT_LIMIT,

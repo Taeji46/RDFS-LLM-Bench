@@ -40,11 +40,12 @@ def _infer_source(meta: dict) -> str:
     return "unknown"
 
 
-def build_rk(rule: str) -> tuple[list[dict], str, str, str]:
+def build_rk(rule: str) -> tuple[list[dict], str, str, str, list[str]]:
     entries, meta, filename = load_benchmark_sample(rule)
     cfg = RULE_CONFIGS[rule]
     fetch_uid = meta["fetch_uid"]
     fetched_at = meta.get("fetched_at", "")
+    rules = meta["rules"]
 
     dataset: list[dict] = []
     for entry in entries:
@@ -59,7 +60,7 @@ def build_rk(rule: str) -> tuple[list[dict], str, str, str]:
         except Exception as exc:
             print(f"  WARNING: skipping entry {entry}: {exc}")
 
-    return dataset, fetch_uid, fetched_at, filename
+    return dataset, fetch_uid, fetched_at, filename, rules
 
 
 def main() -> None:
@@ -67,8 +68,8 @@ def main() -> None:
     for rule in ALL_RULES:
         print(f"\n=== {rule} ===")
         try:
-            dataset, fetch_uid, fetched_at, filename = build_rk(rule)
-            save_dataset(dataset, rule, DATASET_VARIANT, fetch_uid, fetched_at, filename, build_date=build_date)
+            dataset, fetch_uid, fetched_at, filename, rules = build_rk(rule)
+            save_dataset(dataset, rule, DATASET_VARIANT, fetch_uid, fetched_at, filename, build_date=build_date, rules=rules)
         except FileNotFoundError as exc:
             print(f"  SKIP: {exc}")
 

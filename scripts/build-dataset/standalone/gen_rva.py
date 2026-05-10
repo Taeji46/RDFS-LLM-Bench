@@ -29,6 +29,7 @@ from shared._base import (
     ALL_RULES,
     RULE_CONFIGS,
     all_distinct,
+    load_benchmark_sample,
     make_dataset_entry,
     save_dataset,
 )
@@ -228,12 +229,14 @@ def main() -> None:
 
     for rule in ALL_RULES:
         print(f"\n=== {rule} ===")
+        _, meta, _ = load_benchmark_sample(rule)
         dataset = build_rva(rule, resources, properties, classes)
         save_dataset(
             dataset,
             rule,
             "rva",
             build_date=build_date,
+            rules=meta["rules"],
         )
 
 

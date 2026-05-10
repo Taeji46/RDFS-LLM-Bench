@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from _base import DBP_ENDPOINT, PROJECT_ROOT, all_distinct, balanced_sample, get_fetch_args, parse_bindings, query_hash, run_sparql, save_benchmark_sample
 
 RULE = "rdfs9_11"
+RULES = ['rdfs9', 'rdfs11']
 SOURCE = "dbp"
 GROUP_BY = "z"
 DEFAULT_LIMIT = 400
@@ -44,7 +45,8 @@ if __name__ == "__main__":
     metadata = {
         "endpoints": [DBP_ENDPOINT],
         "fetched_at": args.date,
-        "rule": RULE,
+        "pattern_id": RULE,
+        "rules": RULES,
         "source": SOURCE,
         "group_by": GROUP_BY,
         "limit": DEFAULT_LIMIT,

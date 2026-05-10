@@ -29,6 +29,7 @@ zenodo-upload/
 zenodo-upload-v2/
 zenodo-upload-v2-0-2/
 zenodo-upload-v3/
+zenodo-upload-v3-1-0/
 
 # Datasets and eval data (published via Zenodo)
 data/lod-samples/

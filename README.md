@@ -33,7 +33,7 @@ RDFS-LLM-Bench systematically evaluates how well LLMs can perform RDFS-based rea
 The benchmark covers 6 core RDFS entailment rules (rdfs2, rdfs3, rdfs5, rdfs7, rdfs9,
 rdfs11) and 13 multi-rule combinations, yielding 19 entailment patterns in total
 (6 single-rule + 7 two-rule + 6 three-rule). It evaluates LLMs across 7 dataset
-variants under 2 presented rule types × 3 rule formats (= 6 prompt conditions).
+variants under 2 presented rule types × 3 rule formats (= 6 prompting conditions).
 
 ---
 
@@ -83,7 +83,7 @@ Each PRT is combined with one of three rule formats:
 | Name only | `-name` | Rule name only |
 | Definition only | `-def` | Rule definition only |
 
-The combination of PRT and Rule Format gives 6 prompt conditions, encoded as `{PRT}-{rule_format}` in CLI arguments, file paths, and the `prompting_condition` JSON field:
+The combination of PRT and Rule Format gives 6 prompting conditions, encoded as `{PRT}-{rule_format}` in CLI arguments, file paths, and the `prompting_condition` JSON field:
 `NRP-full`, `NRP-name`, `NRP-def`, `ARP-full`, `ARP-name`, `ARP-def`.
 
 ---
@@ -236,7 +236,7 @@ Output: `data/datasets/{dataset_variant}/{1,2,3}-rule/dataset__*.json`
 
 ### 5. Build zero-shot task files
 
-Generates prompt files from the benchmark datasets for each prompt condition (PRT × Rule Format).
+Generates prompt files from the benchmark datasets for each prompting condition (PRT × Rule Format).
 
 Build all prompting conditions and dataset variants:
 
@@ -555,7 +555,7 @@ Output: `data/llm-eval/reports/{strict,flex}/scores-{mode}.csv`
 
 ### Step 6 — Export per-model score sheets
 
-Splits the aggregated CSV from Step 5 into one Excel workbook per model, with a separate sheet for each prompt condition (NRP-full, ARP-name, etc.).
+Splits the aggregated CSV from Step 5 into one Excel workbook per model, with a separate sheet for each prompting condition (NRP-full, ARP-name, etc.).
 
 ```bash
 python scripts/llm-eval/report/export_excel.py --mode strict
@@ -639,7 +639,8 @@ Raw SPARQL query result for one rule. The `entries` array contains the variable 
   "metadata": {
     "endpoints": ["https://dbpedia.org/sparql"],
     "fetched_at": "20241216",
-    "rule": "rdfs9",
+    "pattern_id": "rdfs9",
+    "rules": ["rdfs9"],
     "source": "dbp",
     "limit": 400,
     "fetch_uid": "f-1862e2be",

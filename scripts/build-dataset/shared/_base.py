@@ -549,16 +549,6 @@ def _rule_to_nrule_dir(rule: str) -> str:
     raise ValueError(f"Unknown rule: {rule}")
 
 
-def expand_rule_ids(rule: str) -> list[str]:
-    """Expand a composite rule id into atomic rule ids.
-    e.g. rdfs2_3_7 -> [rdfs2, rdfs3, rdfs7]
-    """
-    match = re.fullmatch(r"rdfs(\d+(?:_\d+)*)", rule.strip())
-    if not match:
-        raise ValueError(f"Invalid rule id format: {rule}")
-    return [f"rdfs{n}" for n in match.group(1).split("_")]
-
-
 def make_dataset_entry(premise_knowledge: str, expected_output: str) -> dict:
     """Build one standardized dataset entry."""
     return {
@@ -604,6 +594,8 @@ def save_dataset(
     source_filename: str | None = None,
     output_dir: str | None = None,
     build_date: str | None = None,
+    *,
+    rules: list[str],
 ) -> str:
     """Save a dataset to JSON with metadata wrapper. Returns output path.
 
@@ -627,7 +619,7 @@ def save_dataset(
 
     metadata: dict = {
         "pattern_id": rule,
-        "rules": expand_rule_ids(rule),
+        "rules": rules,
         "dataset_variant": dataset_variant,
     }
     if fetch_uid is not None:

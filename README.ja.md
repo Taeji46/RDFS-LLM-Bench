@@ -639,7 +639,8 @@ python scripts/llm-eval/report/f1_by_dataset_table.py --mode flex
   "metadata": {
     "endpoints": ["https://dbpedia.org/sparql"],
     "fetched_at": "20241216",
-    "rule": "rdfs9",
+    "pattern_id": "rdfs9",
+    "rules": ["rdfs9"],
     "source": "dbp",
     "limit": 400,
     "fetch_uid": "f-1862e2be",

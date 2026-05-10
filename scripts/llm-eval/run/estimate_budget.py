@@ -116,7 +116,7 @@ def _parse_request_stem(stem: str) -> dict | None:
                     "model": fields[0],
                     "op":    fields[1],
                     "ds":    fields[2],
-                    "rule":  fields[3],
+                    "pattern_id": fields[3],
                 }
     return None
 
@@ -160,7 +160,7 @@ def _collect(task_index: dict) -> list[dict]:
                 info = _parse_request_stem(req_file.stem)
                 if info is None:
                     continue
-                model, op, ds, rule = info["model"], info["op"], info["ds"], info["rule"]
+                model, op, ds, rule = info["model"], info["op"], info["ds"], info["pattern_id"]
 
                 tasks = task_index.get((op, ds, rule))
                 if tasks is None:
@@ -191,7 +191,7 @@ def _collect(task_index: dict) -> list[dict]:
                     "runner":     runner,
                     "op":         op,
                     "ds":         ds,
-                    "rule":       rule,
+                    "pattern_id": rule,
                     "n_tasks":    n_tasks,
                     "in_tokens":  in_tokens,
                     "out_tokens": out_tokens,
@@ -269,7 +269,7 @@ def _write_excel(rows: list[dict], pricing: dict, out_path: Path) -> None:
     ws_det = wb.create_sheet("Detail")
 
     det_headers = [
-        "model", "runner", "op", "ds", "rule",
+        "model", "runner", "op", "ds", "pattern_id",
         "n_tasks", "input_tokens", "output_tokens",
         "input_cost_USD", "output_cost_USD", "total_cost_USD",
     ]
@@ -279,7 +279,7 @@ def _write_excel(rows: list[dict], pricing: dict, out_path: Path) -> None:
         c.fill = hdr_fill
         c.alignment = center
 
-    for row_i, r in enumerate(sorted(rows, key=lambda x: (x["model"], x["op"], x["ds"], x["rule"])), start=2):
+    for row_i, r in enumerate(sorted(rows, key=lambda x: (x["model"], x["op"], x["ds"], x["pattern_id"])), start=2):
         p   = pricing.get(r["model"], {})
         ip  = p.get("input_per_1m",  0.0)
         op_ = p.get("output_per_1m", 0.0)
@@ -287,7 +287,7 @@ def _write_excel(rows: list[dict], pricing: dict, out_path: Path) -> None:
         out_cost = r["out_tokens"] / 1_000_000 * op_
 
         vals = [
-            r["model"], r["runner"], r["op"], r["ds"], r["rule"],
+            r["model"], r["runner"], r["op"], r["ds"], r["pattern_id"],
             r["n_tasks"], r["in_tokens"], r["out_tokens"],
             round(in_cost, 6), round(out_cost, 6), round(in_cost + out_cost, 6),
         ]

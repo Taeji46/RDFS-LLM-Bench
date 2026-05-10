@@ -26,11 +26,12 @@ from shared._base import (
 DATASET_VARIANT = "ls"
 
 
-def build_ls(rule: str) -> tuple[list[dict], str, str, str]:
+def build_ls(rule: str) -> tuple[list[dict], str, str, str, list[str]]:
     entries, meta, filename = load_benchmark_sample(rule)
     cfg = RULE_CONFIGS[rule]
     fetch_uid = meta["fetch_uid"]
     fetched_at = meta.get("fetched_at", "")
+    rules = meta["rules"]
 
     dataset: list[dict] = []
     skipped = 0
@@ -53,7 +54,7 @@ def build_ls(rule: str) -> tuple[list[dict], str, str, str]:
     if skipped:
         print(f"  Skipped {skipped} entries (non-shuffleable terms)")
 
-    return dataset, fetch_uid, fetched_at, filename
+    return dataset, fetch_uid, fetched_at, filename, rules
 
 
 def main() -> None:
@@ -61,8 +62,8 @@ def main() -> None:
     for rule in ALL_RULES:
         print(f"\n=== {rule} ===")
         try:
-            dataset, fetch_uid, fetched_at, filename = build_ls(rule)
-            save_dataset(dataset, rule, DATASET_VARIANT, fetch_uid, fetched_at, filename, build_date=build_date)
+            dataset, fetch_uid, fetched_at, filename, rules = build_ls(rule)
+            save_dataset(dataset, rule, DATASET_VARIANT, fetch_uid, fetched_at, filename, build_date=build_date, rules=rules)
         except FileNotFoundError as exc:
             print(f"  SKIP: {exc}")
 

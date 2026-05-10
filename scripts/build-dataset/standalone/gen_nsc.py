@@ -24,6 +24,7 @@ from shared._base import (
     ALL_RULES,
     RULE_CONFIGS,
     _GSC_TERM_TYPE,
+    load_benchmark_sample,
     make_dataset_entry,
     save_dataset,
 )
@@ -134,12 +135,14 @@ def main() -> None:
 
     for rule in ALL_RULES:
         print(f"\n=== {rule} ===")
+        _, meta, _ = load_benchmark_sample(rule)
         dataset = build_nsc(rule)
         save_dataset(
             dataset,
             rule,
             "nsc",
             build_date=build_date,
+            rules=meta["rules"],
         )
 
 

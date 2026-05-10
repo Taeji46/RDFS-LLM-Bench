@@ -28,11 +28,12 @@ from shared._base import (
 )
 
 
-def build_gs_gsc(rule: str) -> tuple[list[dict], list[dict], str, str, str]:
+def build_gs_gsc(rule: str) -> tuple[list[dict], list[dict], str, str, str, list[str]]:
     entries, meta, filename = load_benchmark_sample(rule)
     cfg = RULE_CONFIGS[rule]
     fetch_uid = meta["fetch_uid"]
     fetched_at = meta.get("fetched_at", "")
+    rules = meta["rules"]
 
     gs_dataset: list[dict] = []
     gsc_dataset: list[dict] = []
@@ -72,7 +73,7 @@ def build_gs_gsc(rule: str) -> tuple[list[dict], list[dict], str, str, str]:
     if skipped:
         print(f"  Skipped {skipped} entries (non-derangeable terms)")
 
-    return gs_dataset, gsc_dataset, fetch_uid, fetched_at, filename
+    return gs_dataset, gsc_dataset, fetch_uid, fetched_at, filename, rules
 
 
 GS_SKIP_RULES = {"rdfs5", "rdfs11"}  # all terms same resource type → derangement meaningless
@@ -86,9 +87,9 @@ def main() -> None:
             continue
         print(f"\n=== {rule} ===")
         try:
-            gs_dataset, gsc_dataset, fetch_uid, fetched_at, filename = build_gs_gsc(rule)
-            save_dataset(gs_dataset,  rule, "gs",  fetch_uid, fetched_at, filename, build_date=build_date)
-            save_dataset(gsc_dataset, rule, "gsc", fetch_uid, fetched_at, filename, build_date=build_date)
+            gs_dataset, gsc_dataset, fetch_uid, fetched_at, filename, rules = build_gs_gsc(rule)
+            save_dataset(gs_dataset,  rule, "gs",  fetch_uid, fetched_at, filename, build_date=build_date, rules=rules)
+            save_dataset(gsc_dataset, rule, "gsc", fetch_uid, fetched_at, filename, build_date=build_date, rules=rules)
         except FileNotFoundError as exc:
             print(f"  SKIP: {exc}")
 

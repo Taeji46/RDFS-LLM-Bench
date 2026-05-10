@@ -33,6 +33,7 @@ from _base import (
 )
 
 RULE = "rdfs5"
+RULES = ['rdfs5']
 SOURCE = "wdt+schema"
 GROUP_BY = "k"
 DEFAULT_LIMIT = 400
@@ -184,7 +185,8 @@ if __name__ == "__main__":
     metadata = {
         "endpoints": [WDT_ENDPOINT, SCHEMA_NT_URL],
         "fetched_at": args.date,
-        "rule": RULE,
+        "pattern_id": RULE,
+        "rules": RULES,
         "source": SOURCE,
         "group_by": GROUP_BY,
         "limit": DEFAULT_LIMIT,

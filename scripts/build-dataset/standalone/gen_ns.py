@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared._base import (
     ALL_RULES,
     RULE_CONFIGS,
+    load_benchmark_sample,
     make_dataset_entry,
     save_dataset,
 )
@@ -89,12 +90,14 @@ def main() -> None:
 
     for rule in ALL_RULES:
         print(f"\n=== {rule} ===")
+        _, meta, _ = load_benchmark_sample(rule)
         dataset = build_ns(rule)
         save_dataset(
             dataset,
             rule,
             "ns",
             build_date=build_date,
+            rules=meta["rules"],
         )
 
 
