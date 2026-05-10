@@ -8,6 +8,8 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 
 英語版: [README.md](README.md)
 
+> **重要。** Zenodo Version 3.1.0 をご利用ください。旧 Zenodo 公開版は撤回されています。
+
 ---
 
 ## 目次

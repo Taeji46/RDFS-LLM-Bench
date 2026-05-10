@@ -8,6 +8,8 @@ A Benchmark for Evaluating RDF Schema Inference in LLMs.
 
 Japanese version: [README.ja.md](README.ja.md)
 
+> **Important.** Please use Zenodo Version 3.1.0. Earlier Zenodo deposits have been withdrawn.
+
 ---
 
 ## Contents
