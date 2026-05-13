@@ -15,6 +15,7 @@ Japanese version: [README.ja.md](README.ja.md)
 ## Contents
 
 - [Overview](#overview)
+- [Architecture](#architecture)
 - [RDFS Entailment Rules](#rdfs-entailment-rules)
 - [Dataset Variants](#dataset-variants)
 - [Presented Rule Types and Rule Formats](#presented-rule-types-and-rule-formats)
@@ -25,6 +26,8 @@ Japanese version: [README.ja.md](README.ja.md)
 - [Data Format](#data-format)
 - [File Naming Conventions](#file-naming-conventions)
 - [Troubleshooting](#troubleshooting)
+- [Limitations](#limitations)
+- [Maintenance and Sustainability](#maintenance-and-sustainability)
 - [License](#license)
 
 ---
@@ -36,6 +39,25 @@ The benchmark covers 6 core RDFS entailment rules (rdfs2, rdfs3, rdfs5, rdfs7, r
 rdfs11) and 13 multi-rule combinations, yielding 19 entailment patterns in total
 (6 single-rule + 7 two-rule + 6 three-rule). It evaluates LLMs across 7 dataset
 variants under 2 presented rule types × 3 rule formats (= 6 prompting conditions).
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    LOD["LOD Sources<br/>(DBpedia, Wikidata,<br/>schema.org)"]
+    LOD -->|SPARQL| Samples["LOD samples<br/>19 entailment patterns"]
+    Samples --> LODVariants["LOD-based variants<br/>(RK, LS, GS, GSC)"]
+    StdGen["Standalone generators<br/>(random tokens / vocabulary)"] --> StdVariants["Standalone variants<br/>(NS, NSC, RVA)"]
+    LODVariants --> Tasks["Zero-shot tasks<br/>6 prompting conditions<br/>(NRP/ARP × full/name/def)"]
+    StdVariants --> Tasks
+    Tasks --> LLM["LLM inference"]
+    LLM --> Eval["Evaluation<br/>strict / flex modes"]
+    Eval --> Reports["Reports<br/>scores, F1,<br/>composite metrics"]
+```
+
+LOD source triples are sampled via SPARQL into 19 entailment-pattern files and transformed into 4 LOD-based dataset variants (RK, LS, GS, GSC). In parallel, 3 standalone variants (NS, NSC, RVA) are generated programmatically. All 7 variants are rendered as zero-shot tasks under 6 prompting conditions, evaluated against LLM outputs in strict and flex modes, and aggregated into per-model scores and 7 composite metrics (RI, SI, RRS, SRS, VR, TR, RDI).
 
 ---
 
@@ -628,6 +650,19 @@ python scripts/llm-eval/report/f1_by_dataset_table.py --mode flex
 
 Output: `data/llm-eval/reports/{strict,flex}/f1_by_dataset-{mode}.xlsx`
 
+### Paper Table Reproduction
+
+The aggregated outputs in `data/llm-eval/reports/{mode}/` directly correspond to (or contain supersets of) the tables reported in the accompanying paper. They are deterministic and can be regenerated from the published response data by running Steps 5–7 (and the optional steps above):
+
+| Paper table | Output file | Generating script | Notes |
+|---|---|---|---|
+| **Table 7**: Composite Metrics | `composite_metrics-{mode}.csv` | `compute_composite_metrics.py` | Direct 1:1 correspondence |
+| **Table 8**: Average Inference F1 Scores per Dataset Variant | `f1_by_dataset-{mode}.xlsx` | `f1_by_dataset_table.py` | Direct 1:1 correspondence |
+| **Table 9**: Inference F1 Scores by PRT and Number of Rules | `scaling_analysis-{mode}.xlsx` | `analyze_scaling.py` | The xlsx contains all (dataset variant × rule format) sheets; the paper shows 4 specific panels: (RK, full), (NS, full), (GS, full), (NS, name) |
+| **Table 10**: Inference F1 Scores per RDFS Rule (1-rule, full) | `rule_accuracy_analysis-{mode}.xlsx` | `analyze_rule_accuracy.py` | The xlsx contains all 7 dataset variants; the paper shows RK and NS only |
+
+The Zenodo deposit already includes these files under `reports.zip`, so downstream consumers can verify the numerical results without re-running LLM inference.
+
 ---
 
 ## Data Format
@@ -786,6 +821,32 @@ SPARQL endpoint load or temporary instability. Wait and retry.
 
 **`lod-sample file not found`**
 The path in `scripts/build-dataset/lod-sample-config.json` does not match the actual sample filename. Update the config.
+
+---
+
+## Limitations
+
+- **RDFS rule coverage**: The benchmark covers 6 of the standard RDFS entailment rules (rdfs2, rdfs3, rdfs5, rdfs7, rdfs9, rdfs11), selected for their typical use in Semantic Web applications. Rules yielding trivial inferences or operating at the meta-vocabulary level (rdfs1, rdfs4a/b, rdfs6, rdfs8, rdfs10, rdfs12, rdfs13) are excluded.
+- **Multi-rule patterns**: The benchmark evaluates patterns combining up to 3 rules. Combinations of 4 or more rules are out of scope, as obtaining sufficient sample sizes from LOD sources for deeper compositions is difficult.
+- **Output format and matching**: The benchmark uses flat `<s, p, o>` triple notation with syntactic matching (strict / flex modes). Support for richer RDF serializations (e.g., Turtle) and semantic equivalence checking is planned for future extensions.
+- **Premise ordering**: RDFS inference is order-independent (premises are treated as a set), but LLMs may exhibit ordering sensitivity in practice (especially with hierarchical structures). Variance from premise ordering is not characterized.
+- **LOD snapshot semantics**: Real-world dataset entries reflect the state of DBpedia / Wikidata / schema.org at fetch time. Subsequent changes to source endpoints do not propagate to the deposit.
+- **Sample sizes**: Each evaluation cell contains 100-400 entries; statistical power on tail behaviors and rare error modes is limited.
+- **Prompting strategy**: The provided task files use single-turn zero-shot prompting. Chain-of-Thought, few-shot, and multi-turn self-correction strategies are out of scope of the supplied tasks but can be investigated by extending the task generation pipeline.
+
+---
+
+## Maintenance and Sustainability
+
+### Active Maintenance
+- Maintained by the authors at Aoyama Gakuin University.
+- GitHub issues are reviewed on a best-effort basis, typically within 30 days.
+- New versions are released on Zenodo (following semantic versioning) for added datasets, models, or rules.
+
+### Long-term Accessibility
+- The Zenodo deposit (DOI: [10.5281/zenodo.19867258](https://doi.org/10.5281/zenodo.19867258)) is permanently archived under Zenodo's long-term preservation policy.
+- The benchmark remains accessible regardless of GitHub repository status.
+- Source code is MIT-licensed; community fork / mirror is welcome.
 
 ---
 

@@ -15,6 +15,7 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 ## 目次
 
 - [概要](#概要)
+- [アーキテクチャ](#アーキテクチャ)
 - [RDFS 含意ルール](#rdfs-含意ルール)
 - [データセット種類](#データセット種類)
 - [Presented Rule Type と Rule Format](#presented-rule-type-と-rule-format)
@@ -25,6 +26,8 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 - [データフォーマット](#データフォーマット)
 - [ファイル命名規則](#ファイル命名規則)
 - [トラブルシューティング](#トラブルシューティング)
+- [制限事項](#制限事項)
+- [メンテナンスと持続可能性](#メンテナンスと持続可能性)
 - [ライセンス](#ライセンス)
 
 ---
@@ -36,6 +39,25 @@ RDFS-LLM-Bench は LLM の RDFS 推論能力を体系的に評価するための
 13個の複数ルール組み合わせを扱い、合計 19 種類の含意パターン（1 ルール 6 種 + 2 ルール 7 種 + 3 ルール 6 種）を網羅します。
 評価は 7 種類のデータセットに対し、2 種類の Presented Rule Type × 3 種類の Rule Format
 （= 6 通りのプロンプト条件）で行います。
+
+---
+
+## アーキテクチャ
+
+```mermaid
+flowchart LR
+    LOD["LOD Sources<br/>(DBpedia, Wikidata,<br/>schema.org)"]
+    LOD -->|SPARQL| Samples["LOD samples<br/>19 entailment patterns"]
+    Samples --> LODVariants["LOD-based variants<br/>(RK, LS, GS, GSC)"]
+    StdGen["Standalone generators<br/>(random tokens / vocabulary)"] --> StdVariants["Standalone variants<br/>(NS, NSC, RVA)"]
+    LODVariants --> Tasks["Zero-shot tasks<br/>6 prompting conditions<br/>(NRP/ARP × full/name/def)"]
+    StdVariants --> Tasks
+    Tasks --> LLM["LLM inference"]
+    LLM --> Eval["Evaluation<br/>strict / flex modes"]
+    Eval --> Reports["Reports<br/>scores, F1,<br/>composite metrics"]
+```
+
+LOD ソースのトリプルを SPARQL でサンプリングして 19 含意パターンの LOD samples を生成し、4 つの LOD ベース dataset variant (RK, LS, GS, GSC) へと変換します。並行して、3 つの standalone variant (NS, NSC, RVA) はプログラム的に生成します。全 7 variant を 6 prompting condition のゼロショットタスクとしてレンダリングし、LLM の出力を strict / flex モードで評価し、モデル別スコアと 7 種類の複合メトリクス (RI, SI, RRS, SRS, VR, TR, RDI) として集計します。
 
 ---
 
@@ -628,6 +650,19 @@ python scripts/llm-eval/report/f1_by_dataset_table.py --mode flex
 
 出力先: `data/llm-eval/reports/{strict,flex}/f1_by_dataset-{mode}.xlsx`
 
+### 論文の表の再現
+
+`data/llm-eval/reports/{mode}/` 配下の集計出力は、付随する論文の各表に直接対応（または論文のスーパーセットを含む）します。出力は決定的で、ステップ 5〜7（および上記の任意ステップ）を実行することで公開済みレスポンスデータから再生成可能です。
+
+| 論文の表 | 出力ファイル | 生成スクリプト | 備考 |
+|---|---|---|---|
+| **Table 7**: Composite Metrics | `composite_metrics-{mode}.csv` | `compute_composite_metrics.py` | 1 対 1 で直接対応 |
+| **Table 8**: Average Inference F1 Scores per Dataset Variant | `f1_by_dataset-{mode}.xlsx` | `f1_by_dataset_table.py` | 1 対 1 で直接対応 |
+| **Table 9**: Inference F1 Scores by PRT and Number of Rules | `scaling_analysis-{mode}.xlsx` | `analyze_scaling.py` | xlsx は全 (dataset variant × rule format) シートを含む。論文は (RK, full)、(NS, full)、(GS, full)、(NS, name) の 4 パネルを掲載 |
+| **Table 10**: Inference F1 Scores per RDFS Rule (1-rule, full) | `rule_accuracy_analysis-{mode}.xlsx` | `analyze_rule_accuracy.py` | xlsx は全 7 dataset variant を含む。論文は RK と NS のみ掲載 |
+
+Zenodo 公開版にはこれらのファイルが `reports.zip` として既に含まれているため、LLM 推論を再実行せずに数値結果を検証できます。
+
 ---
 
 ## データフォーマット
@@ -786,6 +821,32 @@ SPARQL エンドポイントの負荷や一時的不安定が原因です。時�
 
 **`lod-sample file not found`**
 `scripts/build-dataset/lod-sample-config.json` の設定と実際のサンプルファイル名が不一致です。設定を更新してください。
+
+---
+
+## 制限事項
+
+- **RDFS 規則のカバレッジ**: 本ベンチマークは標準 RDFS 推論規則のうち、Semantic Web アプリケーションで主に用いられる 6 つの規則 (rdfs2, rdfs3, rdfs5, rdfs7, rdfs9, rdfs11) を対象とします。自明な推論を生む規則やメタ語彙レベルの公理 (rdfs1, rdfs4a/b, rdfs6, rdfs8, rdfs10, rdfs12, rdfs13) は除外しています。
+- **複数ルールパターン**: 本ベンチマークは最大 3 ルールの組み合わせを評価対象とします。4 ルール以上の組み合わせは、十分なサンプル数を LOD ソースから取得することが困難なため範囲外としています。
+- **出力フォーマットとマッチング**: `<s, p, o>` のフラットなトリプル表記と構文的マッチング (strict / flex モード) を用います。Turtle 等のより豊かな RDF 構文への対応や意味的等価性の判定は、今後の拡張で予定しています。
+- **前提の提示順序**: RDFS 推論は本来、前提を集合として扱うため順序非依存ですが、LLM は実際には階層構造などで順序感受性を示す可能性があります。前提順序によるばらつきは特性化していません。
+- **LOD スナップショット**: 実世界データセットは取得時点の DBpedia / Wikidata / schema.org の状態を反映します。ソース側の以降の変更は本公開版には伝播しません。
+- **サンプルサイズ**: 各評価セルは 100〜400 エントリで構成されており、テール事象や稀なエラーモードに対する統計的検出力には限界があります。
+- **プロンプティング戦略**: 提供されるタスクファイルはシングルターン zero-shot プロンプトを用います。Chain-of-Thought、few-shot、マルチターン自己訂正などの戦略は提供タスクの範囲外ですが、タスク生成パイプラインを拡張することで検証可能です。
+
+---
+
+## メンテナンスと持続可能性
+
+### 継続メンテナンス
+- 青山学院大学の著者らがメンテナンスしています。
+- GitHub の issue は best-effort で対応し、通常 30 日以内に確認します。
+- 新規データセット、モデル、ルール追加に応じて、semantic versioning に従って Zenodo に新バージョンを発行します。
+
+### 長期アクセシビリティ
+- Zenodo 公開版 (DOI: [10.5281/zenodo.19867258](https://doi.org/10.5281/zenodo.19867258)) は Zenodo の長期保存ポリシーにより永続的にアーカイブされます。
+- GitHub リポジトリの状態に関わらず、本ベンチマークは引き続きアクセス可能です。
+- ソースコードは MIT ライセンスで提供されており、コミュニティによる fork / mirror を歓迎します。
 
 ---
 
