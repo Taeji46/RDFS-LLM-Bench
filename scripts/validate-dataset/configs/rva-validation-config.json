@@ -1,0 +1,21 @@
+{
+  "rdfs2": "data/datasets/rva/1-rule/dataset__rva__rdfs2__n100__b-c925b787.json",
+  "rdfs3": "data/datasets/rva/1-rule/dataset__rva__rdfs3__n100__b-433d6d5c.json",
+  "rdfs5": "data/datasets/rva/1-rule/dataset__rva__rdfs5__n100__b-0512e985.json",
+  "rdfs7": "data/datasets/rva/1-rule/dataset__rva__rdfs7__n100__b-7db7652b.json",
+  "rdfs9": "data/datasets/rva/1-rule/dataset__rva__rdfs9__n100__b-76cc2db6.json",
+  "rdfs11": "data/datasets/rva/1-rule/dataset__rva__rdfs11__n100__b-35f8054d.json",
+  "rdfs2_3": "data/datasets/rva/2-rule/dataset__rva__rdfs2_3__n100__b-50327628.json",
+  "rdfs2_7": "data/datasets/rva/2-rule/dataset__rva__rdfs2_7__n100__b-b53c51bd.json",
+  "rdfs2_9": "data/datasets/rva/2-rule/dataset__rva__rdfs2_9__n100__b-247bd147.json",
+  "rdfs3_7": "data/datasets/rva/2-rule/dataset__rva__rdfs3_7__n100__b-edfbae15.json",
+  "rdfs3_9": "data/datasets/rva/2-rule/dataset__rva__rdfs3_9__n100__b-96dc907c.json",
+  "rdfs5_7": "data/datasets/rva/2-rule/dataset__rva__rdfs5_7__n100__b-37f1ae9d.json",
+  "rdfs9_11": "data/datasets/rva/2-rule/dataset__rva__rdfs9_11__n100__b-fdc70772.json",
+  "rdfs2_3_7": "data/datasets/rva/3-rule/dataset__rva__rdfs2_3_7__n100__b-545099fa.json",
+  "rdfs2_3_9": "data/datasets/rva/3-rule/dataset__rva__rdfs2_3_9__n100__b-d5a15257.json",
+  "rdfs2_5_7": "data/datasets/rva/3-rule/dataset__rva__rdfs2_5_7__n100__b-78c0ec41.json",
+  "rdfs2_9_11": "data/datasets/rva/3-rule/dataset__rva__rdfs2_9_11__n100__b-3f55864b.json",
+  "rdfs3_5_7": "data/datasets/rva/3-rule/dataset__rva__rdfs3_5_7__n100__b-f2dfd300.json",
+  "rdfs3_9_11": "data/datasets/rva/3-rule/dataset__rva__rdfs3_9_11__n100__b-a4e6afa5.json"
+}
