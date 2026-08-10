@@ -1,10 +1,11 @@
 """Compute composite metrics for LLM RDFS benchmark comparison.
 
 Reads:
-  data/llm-eval/reports/scores.csv
+  data/llm-eval/reports/{mode}/csv/scores-{mode}.csv
 
 Writes:
-  data/llm-eval/reports/composite_metrics.csv
+  data/llm-eval/reports/{mode}/csv/composite_metrics-{mode}.csv   (canonical)
+  data/llm-eval/reports/{mode}/xlsx/composite_metrics-{mode}.xlsx  (view)
 
 Composite metrics (each in [0, 1], higher is better):
 
@@ -38,11 +39,16 @@ from __future__ import annotations
 import argparse
 import csv
 from collections import defaultdict
+from fractions import Fraction
 from pathlib import Path
-from statistics import mean
+import sys
 
 THIS_FILE = Path(__file__).resolve()
+LLM_EVAL_DIR = THIS_FILE.parents[1]
 PROJECT_ROOT = THIS_FILE.parents[3]
+sys.path.insert(0, str(LLM_EVAL_DIR))
+
+from shared.numeric import mean_fraction, metric_from_str, metric_to_decimal, metric_to_excel_float, metric_to_str
 
 DEFAULT_REPORT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "reports"
 
@@ -72,21 +78,7 @@ def _load_scores(csv_path: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
-def _float(val: str) -> float | None:
-    if val == "" or val is None:
-        return None
-    try:
-        return float(val)
-    except ValueError:
-        return None
-
-
-def _mean_or_none(values: list[float]) -> float | None:
-    valid = [v for v in values if v is not None]
-    return mean(valid) if valid else None
-
-
-def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
+def compute_metrics_for_model(records: list[dict]) -> dict[str, Fraction | None]:
     """Compute all 7 composite metrics for one model's records."""
 
     # Index: (prompting_condition, dataset_variant, pattern_id) -> record
@@ -95,15 +87,15 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
         key = (rec["prompting_condition"], rec["dataset_variant"], rec["pattern_id"])
         idx[key] = rec
 
-    def _f1_triple(prompting_condition: str, ds: str, pattern_id: str) -> float | None:
+    def _f1_triple(prompting_condition: str, ds: str, pattern_id: str) -> Fraction | None:
         rec = idx.get((prompting_condition, ds, pattern_id))
-        return _float(rec["f1_triple"]) if rec else None
+        return metric_from_str(rec["f1_triple"]) if rec else None
 
-    def _f1_rule(prompting_condition: str, ds: str, pattern_id: str) -> float | None:
+    def _f1_rule(prompting_condition: str, ds: str, pattern_id: str) -> Fraction | None:
         rec = idx.get((prompting_condition, ds, pattern_id))
         if rec is None:
             return None
-        v = _float(rec.get("f1_rule", ""))
+        v = metric_from_str(rec.get("f1_rule", ""))
         return v if v is not None else None
 
     # Collect all pattern_ids per (family, n_rule)
@@ -118,12 +110,12 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
     # Full-format prompting condition per family (RI/SI/RRS/SRS/VR/TR use full only)
     FULL_OP = {"NRP": "NRP-full", "ARP": "ARP-full"}
 
-    def _combo_mean_f1(ds: str, metric: str = "triple") -> float | None:
+    def _combo_mean_f1(ds: str, metric: str = "triple") -> Fraction | None:
         """Mean over applicable (family × n_rule) combos using full-variant only.
 
         Returns None if any applicable combo has no data.
         """
-        combo_vals: list[float] = []
+        combo_vals: list[Fraction] = []
         for (fam, n_rule) in COMBO_KEYS:
             op = FULL_OP.get(fam)
             if op is None:
@@ -131,7 +123,7 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
             if metric == "rule" and op not in RULE_EVAL_PROMPTING_CONDITIONS:
                 continue
             rules = combo_rules.get((fam, n_rule), set())
-            cell_vals: list[float] = []
+            cell_vals: list[Fraction] = []
             for pattern_id in rules:
                 if metric == "triple":
                     v = _f1_triple(op, ds, pattern_id)
@@ -141,8 +133,10 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
                     cell_vals.append(v)
             if not cell_vals:
                 return None
-            combo_vals.append(mean(cell_vals))
-        return mean(combo_vals) if combo_vals else None
+            cell_mean = mean_fraction(cell_vals)
+            if cell_mean is not None:
+                combo_vals.append(cell_mean)
+        return mean_fraction(combo_vals) if combo_vals else None
 
     # RI / SI
     ri = _combo_mean_f1("rk", "triple")
@@ -152,27 +146,29 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
     rrs = _combo_mean_f1("rk", "rule")
     srs = _combo_mean_f1("ns", "rule")
 
-    def _robustness_mean(num_ds: str, den_ds: str) -> float | None:
+    def _robustness_mean(num_ds: str, den_ds: str) -> Fraction | None:
         """Mean min(1, num/den) over 6 (family × n_rule) combos using full-variant only.
 
         Returns None if any combo has no data.
         """
-        combo_vals: list[float] = []
+        combo_vals: list[Fraction] = []
         for (fam, n_rule) in COMBO_KEYS:
             op = FULL_OP.get(fam)
             if op is None:
                 continue
             rules = combo_rules.get((fam, n_rule), set())
-            cell_vals: list[float] = []
+            cell_vals: list[Fraction] = []
             for pattern_id in rules:
                 num = _f1_triple(op, num_ds, pattern_id)
                 den = _f1_triple(op, den_ds, pattern_id)
                 if num is not None and den is not None and den > 0:
-                    cell_vals.append(min(1.0, num / den))
+                    cell_vals.append(min(Fraction(1), num / den))
             if not cell_vals:
                 return None
-            combo_vals.append(mean(cell_vals))
-        return mean(combo_vals) if combo_vals else None
+            cell_mean = mean_fraction(cell_vals)
+            if cell_mean is not None:
+                combo_vals.append(cell_mean)
+        return mean_fraction(combo_vals) if combo_vals else None
 
     # VR: min(1, GSC/NSC)
     vr = _robustness_mean("gsc", "nsc")
@@ -183,7 +179,7 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
     # RDI: mean min(1, name/full) on NS across all 6 (family × n_rule) combos
     # NRP:1,2,3 → NRP-name/NRP-full, ARP:1,2,3 → ARP-name/ARP-full
     NAME_OP = {"NRP": "NRP-name", "ARP": "ARP-name"}
-    rdi_combo_vals: list[float] = []
+    rdi_combo_vals: list[Fraction] = []
     rdi_ok = True
     for (fam, n_rule) in COMBO_KEYS:
         name_op = NAME_OP.get(fam)
@@ -191,17 +187,19 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
         if name_op is None or full_op is None:
             continue
         rules = combo_rules.get((fam, n_rule), set())
-        cell_vals: list[float] = []
+        cell_vals: list[Fraction] = []
         for pattern_id in rules:
             name_v = _f1_triple(name_op, "ns", pattern_id)
             full_v = _f1_triple(full_op, "ns", pattern_id)
             if name_v is not None and full_v is not None and full_v > 0:
-                cell_vals.append(min(1.0, name_v / full_v))
+                cell_vals.append(min(Fraction(1), name_v / full_v))
         if not cell_vals:
             rdi_ok = False
             break
-        rdi_combo_vals.append(mean(cell_vals))
-    rdi = mean(rdi_combo_vals) if (rdi_ok and rdi_combo_vals) else None
+        cell_mean = mean_fraction(cell_vals)
+        if cell_mean is not None:
+            rdi_combo_vals.append(cell_mean)
+    rdi = mean_fraction(rdi_combo_vals) if (rdi_ok and rdi_combo_vals) else None
 
     return {
         "RI":  ri,
@@ -217,9 +215,76 @@ def compute_metrics_for_model(records: list[dict]) -> dict[str, float | None]:
 FIELDNAMES = ["model", "RI", "SI", "RRS", "SRS", "VR", "TR", "RDI"]
 
 
+def write_excel_view(rows: list[dict], out_path: Path) -> None:
+    try:
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        print("openpyxl is not installed; skipped Excel view.")
+        return
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    assert ws is not None
+    ws.title = "composite metrics"
+
+    hdr_fill = PatternFill("solid", fgColor="4472C4")
+    hdr_font = Font(bold=True, color="FFFFFF")
+    best_fill = PatternFill("solid", fgColor="FFE699")
+    center = Alignment(horizontal="center")
+    right = Alignment(horizontal="right")
+
+    for col, field in enumerate(FIELDNAMES, 1):
+        cell = ws.cell(row=1, column=col, value=field)
+        cell.font = hdr_font
+        cell.fill = hdr_fill
+        cell.alignment = center
+
+    best_by_metric: dict[str, Fraction] = {}
+    for field in FIELDNAMES[1:]:
+        vals = [
+            metric
+            for row in rows
+            if (metric := metric_from_str(row.get(field))) is not None
+        ]
+        if vals:
+            best_by_metric[field] = max(vals)
+
+    for row_idx, row in enumerate(rows, 2):
+        for col, field in enumerate(FIELDNAMES, 1):
+            value = row.get(field, "")
+            cell = ws.cell(row=row_idx, column=col)
+            if field == "model":
+                cell.value = value
+                cell.font = Font(bold=True)
+            elif value == "":
+                cell.value = ""
+            else:
+                metric = metric_from_str(value)
+                if metric is None:
+                    cell.value = ""
+                    continue
+                cell.value = metric_to_excel_float(metric)
+                cell.number_format = "0.000"
+                cell.alignment = right
+                if field in best_by_metric and metric == best_by_metric[field]:
+                    cell.font = Font(bold=True)
+                    cell.fill = best_fill
+
+    ws.column_dimensions["A"].width = 24
+    for col in range(2, len(FIELDNAMES) + 1):
+        ws.column_dimensions[get_column_letter(col)].width = 12
+    ws.freeze_panes = "B2"
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(out_path)
+    print(f"Written Excel view -> {_relpath(out_path)}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Compute composite metrics from scores.csv."
+        description="Compute composite metrics from scores-{mode}.csv."
     )
     parser.add_argument("--mode", type=str, default="strict",
                         choices=["strict", "flex"],
@@ -230,21 +295,27 @@ def main() -> int:
 
     mode        = args.mode
     report_root = args.report_root.resolve() / mode
-    csv_path    = report_root / f"scores-{mode}.csv"
-    out_path    = report_root / f"composite_metrics-{mode}.csv"
+    csv_root    = report_root / "csv"
+    xlsx_root   = report_root / "xlsx"
+    csv_path    = csv_root / f"scores-{mode}.csv"
+    out_path    = csv_root / f"composite_metrics-{mode}.csv"
+    xlsx_path   = xlsx_root / f"composite_metrics-{mode}.xlsx"
 
     if not csv_path.exists():
-        print(f"scores.csv not found: {_relpath(csv_path)}")
+        print(f"scores-{mode}.csv not found: {_relpath(csv_path)}")
         print("Run aggregate_scores.py first.")
         return 1
 
-    if out_path.exists() and not args.overwrite:
-        print(f"Output already exists (use --overwrite): {_relpath(out_path)}")
+    existing = [p for p in (out_path, xlsx_path) if p.exists()]
+    if existing and not args.overwrite:
+        print("Output already exists (use --overwrite):")
+        for p in existing:
+            print(f"  {_relpath(p)}")
         return 1
 
     records = _load_scores(csv_path)
     if not records:
-        print("scores.csv is empty.")
+        print(f"scores-{mode}.csv is empty.")
         return 1
 
     # Group by model
@@ -257,11 +328,15 @@ def main() -> int:
         metrics = compute_metrics_for_model(by_model[model])
         row = {"model": model}
         for k, v in metrics.items():
-            row[k] = round(v, 6) if v is not None else ""
+            row[k] = metric_to_str(v) if v is not None else ""
         rows.append(row)
         print(f"{model}:")
         for k, v in metrics.items():
-            print(f"  {k:4s} = {v:.6f}" if v is not None else f"  {k:4s} = N/A")
+            print(
+                f"  {k:4s} = {metric_to_decimal(v):.6f}"
+                if v is not None
+                else f"  {k:4s} = N/A"
+            )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as f:
@@ -270,6 +345,7 @@ def main() -> int:
         writer.writerows(rows)
 
     print(f"\nWritten -> {_relpath(out_path)}")
+    write_excel_view(rows, xlsx_path)
     return 0
 
 

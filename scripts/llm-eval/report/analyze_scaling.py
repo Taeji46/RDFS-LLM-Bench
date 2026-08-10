@@ -14,8 +14,10 @@ Sheets (one per (rule_format, dataset_variant) combination, when data exists):
 
 Cells without experimental data appear blank (e.g., gpt-oss × name on rk).
 
-Reads:  data/llm-eval/reports/{mode}/scores-{mode}.csv
-Writes: data/llm-eval/reports/{mode}/scaling_analysis-{mode}.xlsx
+Reads:  data/llm-eval/reports/{mode}/csv/scores-{mode}.csv
+Writes:
+  data/llm-eval/reports/{mode}/csv/scaling_analysis-{mode}.csv   (canonical)
+  data/llm-eval/reports/{mode}/xlsx/scaling_analysis-{mode}.xlsx  (view)
 """
 
 from __future__ import annotations
@@ -23,15 +25,21 @@ from __future__ import annotations
 import argparse
 import csv
 from collections import defaultdict
+from fractions import Fraction
 from pathlib import Path
-from statistics import mean
+import sys
 
 import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 THIS_FILE = Path(__file__).resolve()
+LLM_EVAL_DIR = THIS_FILE.parents[1]
 PROJECT_ROOT = THIS_FILE.parents[3]
+sys.path.insert(0, str(LLM_EVAL_DIR))
+
+from shared.numeric import mean_fraction, metric_from_str, metric_to_decimal, metric_to_excel_float, metric_to_str
+
 DEFAULT_REPORT_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "reports"
 
 FAMILIES = ["NRP", "ARP"]
@@ -41,6 +49,7 @@ VALID_COMBOS = {
 }
 DATASET_VARIANTS = ["rk", "ls", "gs", "gsc", "ns", "nsc", "rva"]
 RULE_FORMATS = ["full", "def", "name"]
+CSV_FIELDNAMES = ["rule_format", "dataset_variant", "presented_rule_type", "n_rule", "model", "f1_triple"]
 
 
 def _relpath(p: Path) -> str:
@@ -50,13 +59,6 @@ def _relpath(p: Path) -> str:
         return str(p)
 
 
-def _float(v: str) -> float | None:
-    try:
-        return float(v) if v != "" else None
-    except ValueError:
-        return None
-
-
 def load_scores(csv_path: Path) -> list[dict]:
     with csv_path.open(encoding="utf-8", newline="") as f:
         return list(csv.DictReader(f))
@@ -64,18 +66,18 @@ def load_scores(csv_path: Path) -> list[dict]:
 
 def compute(
     records: list[dict], rule_format_filter: str = "full", dataset_filter: list[str] | None = None
-) -> dict[str, dict[str, dict[tuple[str, int], float | None]]]:
+) -> dict[str, dict[str, dict[tuple[str, int], Fraction | None]]]:
     """Returns {dataset_variant: {model: {(family, n_rule): mean_f1}}}.
 
     Filters records by rule_format (default "full") and optionally by dataset_variant.
     """
     datasets = dataset_filter if dataset_filter is not None else DATASET_VARIANTS
-    buckets: dict[tuple[str, str, str, int], list[float]] = defaultdict(list)
+    buckets: dict[tuple[str, str, str, int], list[Fraction]] = defaultdict(list)
 
     for rec in records:
         if rec.get("rule_format") != rule_format_filter:
             continue
-        f1 = _float(rec.get("f1_triple", ""))
+        f1 = metric_from_str(rec.get("f1_triple", ""))
         if f1 is None:
             continue
         model = rec["model"]
@@ -91,7 +93,7 @@ def compute(
         buckets[(ds, model, family, n_rule)].append(f1)
 
     models = sorted({k[1] for k in buckets})
-    result: dict[str, dict[str, dict[tuple[str, int], float | None]]] = {}
+    result: dict[str, dict[str, dict[tuple[str, int], Fraction | None]]] = {}
     for ds in datasets:
         result[ds] = {}
         for model in models:
@@ -99,11 +101,11 @@ def compute(
             for family, n_rules in VALID_COMBOS.items():
                 for n_rule in n_rules:
                     vals = buckets.get((ds, model, family, n_rule), [])
-                    result[ds][model][(family, n_rule)] = mean(vals) if vals else None
+                    result[ds][model][(family, n_rule)] = mean_fraction(vals) if vals else None
     return result
 
 
-def _write_sheet(wb: openpyxl.Workbook, title: str, ds_data: dict[str, dict[tuple[str, int], float | None]], first: bool) -> None:
+def _write_sheet(wb: openpyxl.Workbook, title: str, ds_data: dict[str, dict[tuple[str, int], Fraction | None]], first: bool) -> None:
     if first:
         ws = wb.active
         assert ws is not None
@@ -137,10 +139,14 @@ def _write_sheet(wb: openpyxl.Workbook, title: str, ds_data: dict[str, dict[tupl
             ws.cell(row=row, column=2, value=n_rule).font = Font(bold=True)
             for col, model in enumerate(models, 3):
                 val = ds_data[model].get((family, n_rule))
-                c = ws.cell(row=row, column=col, value=round(val, 4) if val is not None else "")
+                c = ws.cell(
+                    row=row,
+                    column=col,
+                    value=metric_to_excel_float(val) if val is not None else "",
+                )
                 c.alignment = right
                 if val is not None:
-                    c.number_format = "0.0000"
+                    c.number_format = "0.000"
             row += 1
 
     ws.column_dimensions["A"].width = 18
@@ -151,7 +157,7 @@ def _write_sheet(wb: openpyxl.Workbook, title: str, ds_data: dict[str, dict[tupl
 
 
 def write_excel(
-    data_by_info: dict[str, dict[str, dict[str, dict[tuple[str, int], float | None]]]],
+    data_by_info: dict[str, dict[str, dict[str, dict[tuple[str, int], Fraction | None]]]],
     out_path: Path,
 ) -> None:
     """data_by_info: {rule_format: {dataset_variant: {model: {(family, n_rule): f1}}}}."""
@@ -179,6 +185,35 @@ def write_excel(
     print(f"Written -> {_relpath(out_path)}")
 
 
+def write_csv(
+    data_by_info: dict[str, dict[str, dict[str, dict[tuple[str, int], Fraction | None]]]],
+    out_path: Path,
+) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES)
+        writer.writeheader()
+        for rule_format in RULE_FORMATS:
+            ds_data_by_ds = data_by_info.get(rule_format, {})
+            for ds in DATASET_VARIANTS:
+                ds_data = ds_data_by_ds.get(ds, {})
+                if not ds_data:
+                    continue
+                for family in FAMILIES:
+                    for n_rule in VALID_COMBOS[family]:
+                        for model in sorted(ds_data):
+                            val = ds_data[model].get((family, n_rule))
+                            writer.writerow({
+                                "rule_format": rule_format,
+                                "dataset_variant": ds,
+                                "presented_rule_type": family,
+                                "n_rule": n_rule,
+                                "model": model,
+                                "f1_triple": metric_to_str(val) if val is not None else "",
+                            })
+    print(f"Written CSV -> {_relpath(out_path)}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", default="strict", choices=["strict", "flex"])
@@ -186,14 +221,21 @@ def main() -> int:
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
-    csv_path = args.report_root.resolve() / args.mode / f"scores-{args.mode}.csv"
-    out_path = args.report_root.resolve() / args.mode / f"scaling_analysis-{args.mode}.xlsx"
+    report_root = args.report_root.resolve() / args.mode
+    csv_root = report_root / "csv"
+    xlsx_root = report_root / "xlsx"
+    csv_path = csv_root / f"scores-{args.mode}.csv"
+    csv_out = csv_root / f"scaling_analysis-{args.mode}.csv"
+    xlsx_out = xlsx_root / f"scaling_analysis-{args.mode}.xlsx"
 
     if not csv_path.exists():
         print(f"Not found: {_relpath(csv_path)}")
         return 1
-    if out_path.exists() and not args.overwrite:
-        print(f"Output already exists (use --overwrite): {_relpath(out_path)}")
+    existing = [p for p in (csv_out, xlsx_out) if p.exists()]
+    if existing and not args.overwrite:
+        print("Output already exists (use --overwrite):")
+        for p in existing:
+            print(f"  {_relpath(p)}")
         return 1
 
     records = load_scores(csv_path)
@@ -217,10 +259,14 @@ def main() -> int:
             for family in FAMILIES:
                 for n_rule in VALID_COMBOS[family]:
                     vals = {m: ds_data[m].get((family, n_rule)) for m in sorted(ds_data)}
-                    row_str = "  ".join(f"{m}={v:.4f}" if v is not None else f"{m}=N/A" for m, v in vals.items())
+                    row_str = "  ".join(
+                        f"{m}={metric_to_decimal(v):.4f}" if v is not None else f"{m}=N/A"
+                        for m, v in vals.items()
+                    )
                     print(f"  {family} {n_rule}-rule: {row_str}")
 
-    write_excel(data_by_info, out_path)
+    write_csv(data_by_info, csv_out)
+    write_excel(data_by_info, xlsx_out)
     return 0
 
 

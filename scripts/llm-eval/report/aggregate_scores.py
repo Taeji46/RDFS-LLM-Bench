@@ -1,12 +1,13 @@
-"""Aggregate per-entry eval results into a flat CSV for analysis.
+"""Aggregate per-entry eval results into flat reports for analysis.
 
 Reads eval JSONL files from:
   data/llm-eval/eval/{response_type}/{model}/{op}/{dataset}/{n-rule}/
     eval__{model}__{op}__{dataset}__{rule}__n{N}__...__{run_id}.jsonl
 
 Aggregates across ALL response types (openai-batch, sequential, etc.)
-and writes one flat CSV:
-  data/llm-eval/reports/scores.csv
+and writes:
+  data/llm-eval/reports/{mode}/csv/scores-{mode}.csv   (canonical, machine-readable)
+  data/llm-eval/reports/{mode}/xlsx/scores-{mode}.xlsx  (human-readable view)
 
 Columns:
   model, prompting_condition, dataset_variant, pattern_id, n_rule,
@@ -20,8 +21,8 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
+from fractions import Fraction
 from pathlib import Path
-from statistics import mean
 
 THIS_FILE = Path(__file__).resolve()
 LLM_EVAL_DIR = THIS_FILE.parents[1]
@@ -29,9 +30,18 @@ PROJECT_ROOT = THIS_FILE.parents[3]
 sys.path.insert(0, str(LLM_EVAL_DIR))
 
 from shared.io import read_jsonl
+from shared.numeric import mean_fraction, metric_from_str, metric_to_excel_float, metric_to_str
 
 DEFAULT_EVAL_ROOT    = PROJECT_ROOT / "data" / "llm-eval" / "eval"
 DEFAULT_REPORT_ROOT  = PROJECT_ROOT / "data" / "llm-eval" / "reports"
+
+
+class EvalValidationError(ValueError):
+    """Validation error that should stop aggregation for the whole run."""
+
+    def __init__(self, issue: str, message: str) -> None:
+        super().__init__(message)
+        self.issue = issue
 
 
 def _relpath(path: Path) -> str:
@@ -110,16 +120,40 @@ def aggregate_file(eval_path: Path) -> dict | None:
     if not rows:
         return None
 
+    missing_target_empty_count = sum(1 for r in rows if "target_empty" not in r)
+    if missing_target_empty_count:
+        raise EvalValidationError(
+            "missing_target_empty",
+            f"{_relpath(eval_path)} has {missing_target_empty_count}/{len(rows)} rows "
+            "without target_empty; re-run evaluate_outputs.py with --overwrite",
+        )
+
+    target_empty_count = sum(1 for r in rows if r.get("target_empty"))
+    if target_empty_count:
+        raise EvalValidationError(
+            "target_empty_true",
+            f"{_relpath(eval_path)} has {target_empty_count}/{len(rows)} rows "
+            "with target_empty=true; inspect the corresponding data/task entries",
+        )
+
     n_total   = len(rows)
     n_correct = sum(1 for r in rows if r.get("overall_ok"))
 
-    avg = lambda key: round(mean(r[key] for r in rows if key in r), 6)
+    def avg(key: str) -> str:
+        value = mean_fraction(
+            metric
+            for r in rows
+            if (metric := metric_from_str(r.get(key))) is not None
+        )
+        if value is None:
+            raise ValueError(f"{_relpath(eval_path)} has no values for {key}")
+        return metric_to_str(value)
 
     record: dict = {
         **info,
         "n_total":          n_total,
         "n_correct":        n_correct,
-        "accuracy":         round(n_correct / n_total, 6) if n_total else 0.0,
+        "accuracy":         metric_to_str(Fraction(n_correct, n_total)) if n_total else "0",
         "precision_triple": avg("precision_triple"),
         "recall_triple":    avg("recall_triple"),
         "f1_triple":        avg("f1_triple"),
@@ -138,6 +172,40 @@ def aggregate_file(eval_path: Path) -> dict | None:
     return record
 
 
+def _print_eval_validation_errors(errors: dict[str, list[str]]) -> None:
+    missing = errors.get("missing_target_empty", [])
+    if missing:
+        print(
+            f"[ERROR] {len(missing)} eval files are missing target_empty. "
+            "They were produced by the old evaluator; re-run evaluate_outputs.py with --overwrite."
+        )
+        for message in missing[:10]:
+            print(f"  - {message}")
+        if len(missing) > 10:
+            print(f"  ... {len(missing) - 10} more files")
+
+    target_empty = errors.get("target_empty_true", [])
+    if target_empty:
+        print(
+            f"[ERROR] {len(target_empty)} eval files contain target_empty=true. "
+            "These indicate empty scoring targets and must be inspected before aggregation."
+        )
+        for message in target_empty[:10]:
+            print(f"  - {message}")
+        if len(target_empty) > 10:
+            print(f"  ... {len(target_empty) - 10} more files")
+
+    known = {"missing_target_empty", "target_empty_true"}
+    for issue, messages in sorted(errors.items()):
+        if issue in known:
+            continue
+        print(f"[ERROR] {len(messages)} eval files failed validation with issue={issue}.")
+        for message in messages[:10]:
+            print(f"  - {message}")
+        if len(messages) > 10:
+            print(f"  ... {len(messages) - 10} more files")
+
+
 FIELDNAMES = [
     "model", "prompting_condition", "presented_rule_type", "rule_format",
     "dataset_variant", "pattern_id", "rules", "n_rule",
@@ -145,6 +213,78 @@ FIELDNAMES = [
     "precision_triple", "recall_triple", "f1_triple",
     "precision_rule", "recall_rule", "f1_rule",
 ]
+
+NUMERIC_FIELDS = {
+    "n_rule", "n_total", "n_correct", "accuracy",
+    "precision_triple", "recall_triple", "f1_triple",
+    "precision_rule", "recall_rule", "f1_rule",
+}
+
+
+def _coerce_excel_value(field: str, value):
+    if value == "":
+        return ""
+    if field in {"n_rule", "n_total", "n_correct"}:
+        return int(value)
+    if field in NUMERIC_FIELDS:
+        return metric_to_excel_float(value)
+    return value
+
+
+def write_excel_view(records: list[dict], out_path: Path) -> None:
+    try:
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        print("openpyxl is not installed; skipped Excel view.")
+        return
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    assert ws is not None
+    ws.title = "scores"
+
+    hdr_fill = PatternFill("solid", fgColor="4472C4")
+    hdr_font = Font(bold=True, color="FFFFFF")
+    center = Alignment(horizontal="center")
+    right = Alignment(horizontal="right")
+
+    for col, field in enumerate(FIELDNAMES, 1):
+        cell = ws.cell(row=1, column=col, value=field)
+        cell.font = hdr_font
+        cell.fill = hdr_fill
+        cell.alignment = center
+
+    for row_idx, record in enumerate(records, 2):
+        for col, field in enumerate(FIELDNAMES, 1):
+            value = _coerce_excel_value(field, record.get(field, ""))
+            cell = ws.cell(row=row_idx, column=col, value=value)
+            if field in {"accuracy", "precision_triple", "recall_triple", "f1_triple",
+                         "precision_rule", "recall_rule", "f1_rule"} and value != "":
+                cell.number_format = "0.000"
+                cell.alignment = right
+            elif field in {"n_rule", "n_total", "n_correct"}:
+                cell.number_format = "0"
+                cell.alignment = right
+
+    widths = {
+        "model": 24,
+        "prompting_condition": 20,
+        "presented_rule_type": 18,
+        "rule_format": 14,
+        "dataset_variant": 16,
+        "pattern_id": 16,
+        "rules": 22,
+    }
+    for col, field in enumerate(FIELDNAMES, 1):
+        ws.column_dimensions[get_column_letter(col)].width = widths.get(field, 13)
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(out_path)
+    print(f"Written Excel view -> {_relpath(out_path)}")
 
 
 def main() -> int:
@@ -168,6 +308,8 @@ def main() -> int:
 
     eval_root   = args.eval_root.resolve() / args.mode
     report_root = args.report_root.resolve() / args.mode
+    csv_root = report_root / "csv"
+    xlsx_root = report_root / "xlsx"
 
     # Determine which response-type subdirs to scan
     rt_filter = set(_csv_items(args.response_types))
@@ -218,19 +360,32 @@ def main() -> int:
         print("No eval files matched the filters.")
         return 1
 
-    out_path = report_root / f"scores-{mode}.csv"
-    if out_path.exists() and not args.overwrite:
-        print(f"Output already exists (use --overwrite): {_relpath(out_path)}")
+    out_path = csv_root / f"scores-{mode}.csv"
+    xlsx_path = xlsx_root / f"scores-{mode}.xlsx"
+    existing = [p for p in (out_path, xlsx_path) if p.exists()]
+    if existing and not args.overwrite:
+        print("Output already exists (use --overwrite):")
+        for p in existing:
+            print(f"  {_relpath(p)}")
         return 1
 
     records: list[dict] = []
+    validation_errors: dict[str, list[str]] = {}
     n_error = 0
     for p in eval_files:
-        rec = aggregate_file(p)
+        try:
+            rec = aggregate_file(p)
+        except EvalValidationError as e:
+            validation_errors.setdefault(e.issue, []).append(str(e))
+            continue
         if rec is None:
             n_error += 1
         else:
             records.append(rec)
+
+    if validation_errors:
+        _print_eval_validation_errors(validation_errors)
+        return 1
 
     if not records:
         print("No records aggregated.")
@@ -246,6 +401,7 @@ def main() -> int:
         writer.writerows(records)
 
     print(f"Written {len(records)} rows -> {_relpath(out_path)}")
+    write_excel_view(records, xlsx_path)
     if n_error:
         print(f"  ({n_error} files skipped due to errors)")
     return 0
