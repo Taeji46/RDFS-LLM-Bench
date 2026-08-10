@@ -1,42 +1,14 @@
 .env
 .DS_Store
-last_input.txt
-batch_statuses.json
-upload_mapping.json
-legacy/
-ISWC2026_resource_track_improvement_steps.txt
 CLAUDE.md
-experiment_tasks.md
-experiment_tasks2.md
-experiment_tasks3.md
-experiment_tasks4.md
-experiment_tasks5.md
-experiment_tasks6.md
-license_tasks.md
-rdfs5_chains_406.json
-analysis_lov_licenses.md
-analysis_rdfs2_overgeneralization.md
-
-# Development environment
-.claude/
 pyrightconfig.json
+.claude/
 
-# One-off sampling scripts (reasoning-trace samples)
-scripts/llm-eval/sampling/
+doc/
+archive/
+data/
+zenodo-uploads/
 
-# Zenodo upload artifacts
-zenodo-upload/
-zenodo-upload-v2/
-zenodo-upload-v2-0-2/
-zenodo-upload-v3/
-zenodo-upload-v3-1-0/
-
-# Datasets and eval data (published via Zenodo)
-data/lod-samples/
-data/datasets/
-data/llm-eval/
-
-# Python cache artifacts
 __pycache__/
 *.pyc
 *.pyo
