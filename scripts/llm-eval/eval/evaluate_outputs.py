@@ -31,12 +31,14 @@ sys.path.insert(0, str(LLM_EVAL_DIR))
 
 from shared.io import read_json, write_jsonl
 from shared.eval_utils import (
+    extract_rdf_candidates,
     extract_rdf_triples,
     extract_used_rules,
     compute_set_metrics,
-    compute_flex_metrics,
+    compute_flex_metrics_with_filtered,
     ARP_RULE_EVAL_OPS,
 )
+from shared.numeric import metric_to_str
 
 DEFAULT_RESPONSE_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "responses"
 DEFAULT_TASK_ROOT     = PROJECT_ROOT / "data" / "llm-eval" / "tasks" / "zeroshot"
@@ -192,6 +194,7 @@ def evaluate_one(
 
     # Evaluate
     results: list[dict] = []
+    target_empty_count = 0
     for entry in entries:
         tid = _task_id(entry)
         task = task_map.get(tid, {})
@@ -202,23 +205,33 @@ def evaluate_one(
 
         premise_triples  = extract_rdf_triples(premise)
         expected_triples = extract_rdf_triples(expected_out)
+        target_triples   = expected_triples - premise_triples
+        target_empty     = len(target_triples) == 0
+        if target_empty:
+            target_empty_count += 1
 
         if mode == "flex":
-            import re as _re
-            model_candidates = [
-                raw.replace('< ', '<').replace(' >', '>').replace('"', '').strip('<>')
-                for raw in _re.findall(r'<[^>]+>', output_text)
-            ]
-            p_t, r_t, f1_t = compute_flex_metrics(
-                expected_triples, model_candidates, premise_triples
-            )
-            filtered_triples = model_candidates  # for logging only
+            model_candidates = extract_rdf_candidates(output_text)
+            try:
+                (
+                    p_t,
+                    r_t,
+                    f1_t,
+                    premise_filtered_candidates,
+                    scored_candidates,
+                    matched_target_triples,
+                    unmatched_candidates,
+                ) = compute_flex_metrics_with_filtered(
+                    target_triples, model_candidates, premise_triples
+                )
+            except ValueError as exc:
+                raise ValueError(f"task {tid}: {exc}") from exc
         else:
             raw_model_triples = extract_rdf_triples(output_text)
             filtered_triples  = raw_model_triples - premise_triples
-            p_t, r_t, f1_t = compute_set_metrics(expected_triples, filtered_triples)
+            p_t, r_t, f1_t = compute_set_metrics(target_triples, filtered_triples)
 
-        triple_ok = (p_t == 1.0 and r_t == 1.0)
+        triple_ok = (p_t == 1 and r_t == 1)
 
         row: dict = {
             "task_id":          tid,
@@ -226,23 +239,34 @@ def evaluate_one(
             "expected_output":  expected_out,
             "model_output":     output_text,
             "expected_triples": sorted(expected_triples),
-            "filtered_triples": sorted(filtered_triples) if isinstance(filtered_triples, set) else filtered_triples,
-            "precision_triple": round(p_t, 6),
-            "recall_triple":    round(r_t, 6),
-            "f1_triple":        round(f1_t, 6),
+            "target_triples":   sorted(target_triples),
+            "target_empty":     target_empty,
+            "precision_triple": metric_to_str(p_t),
+            "recall_triple":    metric_to_str(r_t),
+            "f1_triple":        metric_to_str(f1_t),
             "triple_ok":        triple_ok,
         }
+
+        if mode == "flex":
+            row.update({
+                "premise_filtered_candidates": premise_filtered_candidates,
+                "scored_candidates": scored_candidates,
+                "matched_target_triples": sorted(matched_target_triples),
+                "unmatched_candidates": sorted(unmatched_candidates),
+            })
+        else:
+            row["filtered_triples"] = sorted(filtered_triples)
 
         if do_rule_eval:
             model_rules = extract_used_rules(output_text)
             p_r, r_r, f1_r = compute_set_metrics(rules, model_rules)
-            rule_ok = (p_r == 1.0 and r_r == 1.0)
+            rule_ok = (p_r == 1 and r_r == 1)
             row.update({
                 "expected_rules":   rules,
                 "model_rules":      model_rules,
-                "precision_rule":   round(p_r, 6),
-                "recall_rule":      round(r_r, 6),
-                "f1_rule":          round(f1_r, 6),
+                "precision_rule":   metric_to_str(p_r),
+                "recall_rule":      metric_to_str(r_r),
+                "f1_rule":          metric_to_str(f1_r),
                 "rule_ok":          rule_ok,
             })
             row["overall_ok"] = triple_ok and rule_ok
@@ -250,6 +274,11 @@ def evaluate_one(
             row["overall_ok"] = triple_ok
 
         results.append(row)
+
+    if target_empty_count:
+        n = len(results)
+        print(f"  [ERROR] {target_empty_count}/{n} rows have empty target_triples; eval file was not written")
+        return "error"
 
     eval_path.parent.mkdir(parents=True, exist_ok=True)
     write_jsonl(eval_path, results)
