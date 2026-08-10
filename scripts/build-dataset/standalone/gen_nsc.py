@@ -16,16 +16,17 @@ import os
 import random
 import string
 import sys
+import argparse
 from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared._base import (
-    ALL_RULES,
     RULE_CONFIGS,
     _GSC_TERM_TYPE,
     load_benchmark_sample,
     make_dataset_entry,
+    parse_patterns_arg,
     save_dataset,
 )
 
@@ -131,9 +132,13 @@ def build_nsc(rule: str, limit: int = DEFAULT_LIMIT) -> list[dict]:
 # Main
 # ──────────────────────────────────────────────────────────────────
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate NSC datasets.")
+    parser.add_argument("--patterns", default=None, help="Comma-separated pattern ids. Default: all patterns.")
+    args = parser.parse_args()
+
     build_date = date.today().strftime("%Y%m%d")
 
-    for rule in ALL_RULES:
+    for rule in parse_patterns_arg(args.patterns):
         print(f"\n=== {rule} ===")
         _, meta, _ = load_benchmark_sample(rule)
         dataset = build_nsc(rule)

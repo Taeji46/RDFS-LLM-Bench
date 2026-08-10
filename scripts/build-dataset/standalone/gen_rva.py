@@ -18,19 +18,18 @@ Distinctness constraints match the legacy gen_rnd_* scripts exactly:
 import os
 import random
 import sys
+import argparse
 from collections.abc import Callable
 from datetime import date
-
-from SPARQLWrapper import JSON, SPARQLWrapper
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared._base import (
-    ALL_RULES,
     RULE_CONFIGS,
     all_distinct,
     load_benchmark_sample,
     make_dataset_entry,
+    parse_patterns_arg,
     save_dataset,
 )
 
@@ -97,6 +96,8 @@ _DISTINCT_CHECK: dict[str, "Callable[[dict], bool]"] = {
 # Vocabulary fetch
 # ──────────────────────────────────────────────────────────────────
 def _run_sparql(query: str) -> list[str]:
+    from SPARQLWrapper import JSON, SPARQLWrapper
+
     sparql = SPARQLWrapper(DBP_ENDPOINT, agent="RDFS-LLM-Bench/1.0 (research project)")
     sparql.setReturnFormat(JSON)
     sparql.setQuery(query)
@@ -221,13 +222,18 @@ def build_rva(
 # Main
 # ──────────────────────────────────────────────────────────────────
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate RVA datasets.")
+    parser.add_argument("--patterns", default=None, help="Comma-separated pattern ids. Default: all patterns.")
+    args = parser.parse_args()
+
     build_date = date.today().strftime("%Y%m%d")
+    patterns = parse_patterns_arg(args.patterns)
 
     resources = fetch_resources(VOCAB_POOL_SIZE)
     properties = fetch_properties(VOCAB_POOL_SIZE)
     classes = fetch_classes(VOCAB_POOL_SIZE)
 
-    for rule in ALL_RULES:
+    for rule in patterns:
         print(f"\n=== {rule} ===")
         _, meta, _ = load_benchmark_sample(rule)
         dataset = build_rva(rule, resources, properties, classes)

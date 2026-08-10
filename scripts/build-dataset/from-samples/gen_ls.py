@@ -1,7 +1,7 @@
 """
 Generate LS (Local Shuffle) dataset from benchmark samples.
 
-For every rule in ALL_RULES, loads the benchmark sample and converts each
+By default, loads every benchmark sample and converts each
 entry to the standardized { premise_knowledge, expected_output } format
 using shuffled real-world terms. Entries that cannot be shuffled (e.g. identical
 swappable terms) are skipped.
@@ -11,33 +11,37 @@ The shuffle logic per rule is defined by the `shuffle_terms` key in RULE_CONFIGS
 
 import os
 import sys
+import argparse
 from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared._base import (
-    ALL_RULES,
     RULE_CONFIGS,
     load_benchmark_sample,
     make_dataset_entry,
+    parse_patterns_arg,
     save_dataset,
+    wikidata_label_metadata,
 )
 
 DATASET_VARIANT = "ls"
+WIKIDATA_LABEL_CONVERSION = "ascii_fold"
 
 
-def build_ls(rule: str) -> tuple[list[dict], str, str, str, list[str]]:
+def build_ls(rule: str) -> tuple[list[dict], str, str, str, list[str], dict]:
     entries, meta, filename = load_benchmark_sample(rule)
     cfg = RULE_CONFIGS[rule]
     fetch_uid = meta["fetch_uid"]
     fetched_at = meta.get("fetched_at", "")
     rules = meta["rules"]
+    extra_metadata = wikidata_label_metadata(entries, WIKIDATA_LABEL_CONVERSION)
 
     dataset: list[dict] = []
     skipped = 0
     for entry in entries:
         try:
-            t = cfg["build_terms"](entry)
+            t = cfg["build_terms"](entry, ascii_fold=True)
             t_shuffled = cfg["shuffle_terms"](t)
             if t_shuffled is None:
                 skipped += 1
@@ -54,16 +58,30 @@ def build_ls(rule: str) -> tuple[list[dict], str, str, str, list[str]]:
     if skipped:
         print(f"  Skipped {skipped} entries (non-shuffleable terms)")
 
-    return dataset, fetch_uid, fetched_at, filename, rules
+    return dataset, fetch_uid, fetched_at, filename, rules, extra_metadata
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate LS datasets from benchmark samples.")
+    parser.add_argument("--patterns", default=None, help="Comma-separated pattern ids. Default: all patterns.")
+    args = parser.parse_args()
+
     build_date = date.today().strftime("%Y%m%d")
-    for rule in ALL_RULES:
+    for rule in parse_patterns_arg(args.patterns):
         print(f"\n=== {rule} ===")
         try:
-            dataset, fetch_uid, fetched_at, filename, rules = build_ls(rule)
-            save_dataset(dataset, rule, DATASET_VARIANT, fetch_uid, fetched_at, filename, build_date=build_date, rules=rules)
+            dataset, fetch_uid, fetched_at, filename, rules, extra_metadata = build_ls(rule)
+            save_dataset(
+                dataset,
+                rule,
+                DATASET_VARIANT,
+                fetch_uid,
+                fetched_at,
+                filename,
+                build_date=build_date,
+                rules=rules,
+                extra_metadata=extra_metadata,
+            )
         except FileNotFoundError as exc:
             print(f"  SKIP: {exc}")
 

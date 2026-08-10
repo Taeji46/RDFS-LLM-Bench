@@ -52,8 +52,9 @@ def _ascii_fold(s: str) -> str:
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
-def _split_words(s: str) -> list[str]:
-    s = _ascii_fold(s)
+def _split_words(s: str, *, ascii_fold: bool = True) -> list[str]:
+    if ascii_fold:
+        s = _ascii_fold(s)
     parts = re.split(r"[ _]+", s)
     words: list[str] = []
     for part in parts:
@@ -61,11 +62,11 @@ def _split_words(s: str) -> list[str]:
     return [w for w in words if w]
 
 
-def to_property_name(s: str) -> str:
+def to_property_name(s: str, *, ascii_fold: bool = True) -> str:
     """Convert string to camelCase property name.
     e.g. 'crosses river2 (bridge)' → 'crossesRiver2Bridge'
     """
-    words = _split_words(s)
+    words = _split_words(s, ascii_fold=ascii_fold)
     filtered = [w for w in words if w not in ("(", ")")]
     if not filtered:
         return ""
@@ -74,11 +75,11 @@ def to_property_name(s: str) -> str:
     return first + "".join(rest)
 
 
-def to_class_name(s: str) -> str:
+def to_class_name(s: str, *, ascii_fold: bool = True) -> str:
     """Convert string to PascalCase class name.
     e.g. 'river clyde2 (bridge)' → 'RiverClyde2Bridge'
     """
-    words = _split_words(s)
+    words = _split_words(s, ascii_fold=ascii_fold)
     return "".join(
         w.capitalize() if not w.isdigit() and w not in ("(", ")") else w
         for w in words
@@ -86,11 +87,11 @@ def to_class_name(s: str) -> str:
     )
 
 
-def to_instance_name(s: str) -> str:
+def to_instance_name(s: str, *, ascii_fold: bool = True) -> str:
     """Convert string to underscore-separated PascalCase instance name.
     e.g. 'river clyde2 (bridge)' → 'River_Clyde2_(Bridge)'
     """
-    words = _split_words(s)
+    words = _split_words(s, ascii_fold=ascii_fold)
     return "_".join(
         w.capitalize() if not w.isdigit() and w not in ("(", ")") else w
         for w in words
@@ -111,9 +112,9 @@ _GSC_TERM_FN = {
     "class":    to_class_name,
 }
 
-def gsc_convert(t: dict) -> dict:
+def gsc_convert(t: dict, *, ascii_fold: bool = True) -> dict:
     """Apply GSC name formatting to a terms dict (a/b→instance, i/j/k→property, x/y/z/w→class)."""
-    return {k: _GSC_TERM_FN[_GSC_TERM_TYPE[k]](v) for k, v in t.items()}
+    return {k: _GSC_TERM_FN[_GSC_TERM_TYPE[k]](v, ascii_fold=ascii_fold) for k, v in t.items()}
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -124,15 +125,15 @@ def _t(entry: dict, field: str) -> str:
     return get_term(entry[field])
 
 
-def _p(entry: dict, field: str) -> str:
+def _p(entry: dict, field: str, *, ascii_fold: bool = True) -> str:
     """to_property_name() on a label field."""
-    return to_property_name(entry[field])
+    return to_property_name(entry[field], ascii_fold=ascii_fold)
 
 
 _WDT_PREFIX = "http://www.wikidata.org/entity/"
 
 
-def _pn(entry: dict, field: str) -> str:
+def _pn(entry: dict, field: str, *, ascii_fold: bool = True) -> str:
     """Extract a camelCase property name, choosing the source by URI type.
 
     - Wikidata URI (opaque P-ID): use entry[f"{field}_label"] → camelCase.
@@ -140,7 +141,7 @@ def _pn(entry: dict, field: str) -> str:
     """
     uri = entry.get(field, "")
     if uri.startswith(_WDT_PREFIX):
-        return to_property_name(entry[f"{field}_label"])
+        return to_property_name(entry[f"{field}_label"], ascii_fold=ascii_fold)
     return get_term(uri)
 
 
@@ -221,7 +222,7 @@ RULE_CONFIGS: dict[str, dict] = {
     # ── 1-rule ──────────────────────────────────────────────────────
     "rdfs2": {
         "rule_str": "if <i, rdfs:domain, X> and <a, i, b> then <a, rdf:type, X>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
             "i": _t(e, "i"), "x": _t(e, "x"),
         },
@@ -234,7 +235,7 @@ RULE_CONFIGS: dict[str, dict] = {
 
     "rdfs3": {
         "rule_str": "if <i, rdfs:range, X> and <a, i, b> then <b, rdf:type, X>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
             "i": _t(e, "i"), "x": _t(e, "x"),
         },
@@ -247,8 +248,8 @@ RULE_CONFIGS: dict[str, dict] = {
 
     "rdfs5": {
         "rule_str": "if <i, rdfs:subPropertyOf, j> and <j, rdfs:subPropertyOf, k> then <i, rdfs:subPropertyOf, k>",
-        "build_terms": lambda e: {
-            "i": _pn(e, "i"), "j": _pn(e, "j"), "k": _pn(e, "k"),
+        "build_terms": lambda e, *, ascii_fold=True: {
+            "i": _pn(e, "i", ascii_fold=ascii_fold), "j": _pn(e, "j", ascii_fold=ascii_fold), "k": _pn(e, "k", ascii_fold=ascii_fold),
         },
         "build_premise": lambda t: (
             f"<{t['i']}, rdfs:subPropertyOf, {t['j']}>, <{t['j']}, rdfs:subPropertyOf, {t['k']}>"
@@ -260,9 +261,9 @@ RULE_CONFIGS: dict[str, dict] = {
     "rdfs7": {
         # Wikidata: i_dbp is URI, j_label is plain label
         "rule_str": "if <i, rdfs:subPropertyOf, j> and <a, i, b> then <a, j, b>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
-            "i": _t(e, "i_dbp"), "j": _p(e, "j_label"),
+            "i": _t(e, "i_dbp"), "j": _p(e, "j_label", ascii_fold=ascii_fold),
         },
         "build_premise": lambda t: (
             f"<{t['i']}, rdfs:subPropertyOf, {t['j']}>, <{t['a']}, {t['i']}, {t['b']}>"
@@ -273,7 +274,7 @@ RULE_CONFIGS: dict[str, dict] = {
 
     "rdfs9": {
         "rule_str": "if <X, rdfs:subClassOf, Y> and <a, rdf:type, X> then <a, rdf:type, Y>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"),
             "x": _t(e, "x"), "y": _t(e, "y"),
         },
@@ -286,7 +287,7 @@ RULE_CONFIGS: dict[str, dict] = {
 
     "rdfs11": {
         "rule_str": "if <X, rdfs:subClassOf, Y> and <Y, rdfs:subClassOf, Z> then <X, rdfs:subClassOf, Z>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "x": _t(e, "x"), "y": _t(e, "y"), "z": _t(e, "z"),
         },
         "build_premise": lambda t: (
@@ -299,7 +300,7 @@ RULE_CONFIGS: dict[str, dict] = {
     # ── 2-rule ──────────────────────────────────────────────────────
     "rdfs2_3": {
         "rule_str": "if <i, rdfs:domain, X> and <i, rdfs:range, Y> and <a, i, b> then <a, rdf:type, X> and <b, rdf:type, Y>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
             "i": _t(e, "i"), "x": _t(e, "x"), "y": _t(e, "y"),
         },
@@ -315,7 +316,7 @@ RULE_CONFIGS: dict[str, dict] = {
 
     "rdfs2_7": {
         "rule_str": "if <i, rdfs:domain, X> and <i, rdfs:subPropertyOf, j> and <a, i, b> then <a, rdf:type, X> and <a, j, b>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
             "i": _t(e, "i"), "j": _t(e, "j"), "x": _t(e, "x"),
         },
@@ -331,7 +332,7 @@ RULE_CONFIGS: dict[str, dict] = {
 
     "rdfs2_9": {
         "rule_str": "if <i, rdfs:domain, X> and <X, rdfs:subClassOf, Y> and <a, i, b> then <a, rdf:type, X> and <a, rdf:type, Y>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
             "i": _t(e, "i"), "x": _t(e, "x"), "y": _t(e, "y"),
         },
@@ -348,9 +349,9 @@ RULE_CONFIGS: dict[str, dict] = {
     "rdfs3_7": {
         # Wikidata: i_dbp is URI, j_label is plain label
         "rule_str": "if <i, rdfs:range, X> and <i, rdfs:subPropertyOf, j> and <a, i, b> then <b, rdf:type, X> and <a, j, b>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
-            "i": _t(e, "i_dbp"), "j": _p(e, "j_label"), "x": _t(e, "x"),
+            "i": _t(e, "i_dbp"), "j": _p(e, "j_label", ascii_fold=ascii_fold), "x": _t(e, "x"),
         },
         "build_premise": lambda t: (
             f"<{t['i']}, rdfs:range, {t['x']}>, <{t['i']}, rdfs:subPropertyOf, {t['j']}>, "
@@ -364,7 +365,7 @@ RULE_CONFIGS: dict[str, dict] = {
 
     "rdfs3_9": {
         "rule_str": "if <i, rdfs:range, X> and <X, rdfs:subClassOf, Y> and <a, i, b> then <b, rdf:type, X> and <b, rdf:type, Y>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
             "i": _t(e, "i"), "x": _t(e, "x"), "y": _t(e, "y"),
         },
@@ -381,9 +382,9 @@ RULE_CONFIGS: dict[str, dict] = {
     "rdfs5_7": {
         # Wikidata: i_dbp is URI, j_label/k_label are plain labels
         "rule_str": "if <i, rdfs:subPropertyOf, j> and <j, rdfs:subPropertyOf, k> and <a, i, b> then <i, rdfs:subPropertyOf, k> and <a, j, b> and <a, k, b>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
-            "i": _t(e, "i_dbp"), "j": _p(e, "j_label"), "k": _p(e, "k_label"),
+            "i": _t(e, "i_dbp"), "j": _p(e, "j_label", ascii_fold=ascii_fold), "k": _p(e, "k_label", ascii_fold=ascii_fold),
         },
         "build_premise": lambda t: (
             f"<{t['i']}, rdfs:subPropertyOf, {t['j']}>, <{t['j']}, rdfs:subPropertyOf, {t['k']}>, "
@@ -398,7 +399,7 @@ RULE_CONFIGS: dict[str, dict] = {
 
     "rdfs9_11": {
         "rule_str": "if <X, rdfs:subClassOf, Y> and <Y, rdfs:subClassOf, Z> and <a, rdf:type, X> then <a, rdf:type, Y> and <a, rdf:type, Z> and <X, rdfs:subClassOf, Z>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"),
             "x": _t(e, "x"), "y": _t(e, "y"), "z": _t(e, "z"),
         },
@@ -417,9 +418,9 @@ RULE_CONFIGS: dict[str, dict] = {
     "rdfs2_3_7": {
         # Wikidata: i_dbp is URI, j_label is plain label
         "rule_str": "if <i, rdfs:domain, X> and <i, rdfs:range, Y> and <i, rdfs:subPropertyOf, j> and <a, i, b> then <a, rdf:type, X> and <b, rdf:type, Y> and <a, j, b>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
-            "i": _t(e, "i_dbp"), "j": _p(e, "j_label"),
+            "i": _t(e, "i_dbp"), "j": _p(e, "j_label", ascii_fold=ascii_fold),
             "x": _t(e, "x"), "y": _t(e, "y"),
         },
         "build_premise": lambda t: (
@@ -435,7 +436,7 @@ RULE_CONFIGS: dict[str, dict] = {
 
     "rdfs2_3_9": {
         "rule_str": "if <i, rdfs:domain, X> and <i, rdfs:range, Y> and <X, rdfs:subClassOf, Z> and <Y, rdfs:subClassOf, W> and <a, i, b> then <a, rdf:type, X> and <a, rdf:type, Z> and <b, rdf:type, Y> and <b, rdf:type, W>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
             "i": _t(e, "i"),
             "x": _t(e, "x"), "y": _t(e, "y"),
@@ -463,9 +464,9 @@ RULE_CONFIGS: dict[str, dict] = {
     "rdfs2_5_7": {
         # Wikidata: i_dbp is URI, j_label/k_label are plain labels
         "rule_str": "if <i, rdfs:domain, X> and <i, rdfs:subPropertyOf, j> and <j, rdfs:subPropertyOf, k> and <a, i, b> then <a, rdf:type, X> and <i, rdfs:subPropertyOf, k> and <a, j, b> and <a, k, b>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
-            "i": _t(e, "i_dbp"), "j": _p(e, "j_label"), "k": _p(e, "k_label"),
+            "i": _t(e, "i_dbp"), "j": _p(e, "j_label", ascii_fold=ascii_fold), "k": _p(e, "k_label", ascii_fold=ascii_fold),
             "x": _t(e, "x"),
         },
         "build_premise": lambda t: (
@@ -481,7 +482,7 @@ RULE_CONFIGS: dict[str, dict] = {
 
     "rdfs2_9_11": {
         "rule_str": "if <i, rdfs:domain, X> and <X, rdfs:subClassOf, Y> and <Y, rdfs:subClassOf, Z> and <a, i, b> then <a, rdf:type, X> and <a, rdf:type, Y> and <a, rdf:type, Z> and <X, rdfs:subClassOf, Z>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
             "i": _t(e, "i"),
             "x": _t(e, "x"), "y": _t(e, "y"), "z": _t(e, "z"),
@@ -500,9 +501,9 @@ RULE_CONFIGS: dict[str, dict] = {
     "rdfs3_5_7": {
         # Wikidata: i_dbp is URI, j_label/k_label are plain labels
         "rule_str": "if <i, rdfs:range, X> and <i, rdfs:subPropertyOf, j> and <j, rdfs:subPropertyOf, k> and <a, i, b> then <b, rdf:type, X> and <i, rdfs:subPropertyOf, k> and <a, j, b> and <a, k, b>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
-            "i": _t(e, "i_dbp"), "j": _p(e, "j_label"), "k": _p(e, "k_label"),
+            "i": _t(e, "i_dbp"), "j": _p(e, "j_label", ascii_fold=ascii_fold), "k": _p(e, "k_label", ascii_fold=ascii_fold),
             "x": _t(e, "x"),
         },
         "build_premise": lambda t: (
@@ -518,7 +519,7 @@ RULE_CONFIGS: dict[str, dict] = {
 
     "rdfs3_9_11": {
         "rule_str": "if <i, rdfs:range, X> and <X, rdfs:subClassOf, Y> and <Y, rdfs:subClassOf, Z> and <a, i, b> then <b, rdf:type, X> and <b, rdf:type, Y> and <b, rdf:type, Z> and <X, rdfs:subClassOf, Z>",
-        "build_terms": lambda e: {
+        "build_terms": lambda e, *, ascii_fold=True: {
             "a": _t(e, "a"), "b": _t(e, "b"),
             "i": _t(e, "i"),
             "x": _t(e, "x"), "y": _t(e, "y"), "z": _t(e, "z"),
@@ -534,6 +535,28 @@ RULE_CONFIGS: dict[str, dict] = {
         "shuffle_terms": _chain(lambda t: _sw(t, 'a', 'b'), lambda t: _dr(t, 'x', 'y', 'z')),
     },
 }
+
+
+def parse_patterns_arg(patterns: str | None) -> list[str]:
+    """Parse a comma-separated --patterns value, defaulting to ALL_RULES."""
+    if patterns is None or not patterns.strip() or patterns.strip() in {"all", "*"}:
+        return ALL_RULES
+
+    requested: list[str] = []
+    seen: set[str] = set()
+    for raw in patterns.split(","):
+        rule = raw.strip()
+        if not rule:
+            continue
+        if rule not in RULE_CONFIGS:
+            raise ValueError(f"Unknown pattern '{rule}'. Available patterns: {', '.join(ALL_RULES)}")
+        if rule not in seen:
+            requested.append(rule)
+            seen.add(rule)
+
+    if not requested:
+        raise ValueError("--patterns did not contain any valid pattern ids")
+    return requested
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -555,6 +578,19 @@ def make_dataset_entry(premise_knowledge: str, expected_output: str) -> dict:
         "premise_knowledge": premise_knowledge,
         "expected_output": expected_output,
     }
+
+
+def wikidata_label_metadata(entries: list[dict], conversion: str) -> dict:
+    """Return metadata for datasets that render Wikidata property labels.
+
+    This is distinct from GSC case conversion. It documents only how Wikidata
+    label fields are tokenized when converted to local property names.
+    """
+    has_label = any(
+        any(key.endswith("_label") for key in entry)
+        for entry in entries
+    )
+    return {"wikidata_label_conversion": conversion} if has_label else {}
 
 
 def _load_lod_sample_config() -> dict[str, str]:
@@ -596,6 +632,7 @@ def save_dataset(
     build_date: str | None = None,
     *,
     rules: list[str],
+    extra_metadata: dict | None = None,
 ) -> str:
     """Save a dataset to JSON with metadata wrapper. Returns output path.
 
@@ -622,6 +659,8 @@ def save_dataset(
         "rules": rules,
         "dataset_variant": dataset_variant,
     }
+    if extra_metadata:
+        metadata.update(extra_metadata)
     if fetch_uid is not None:
         metadata["fetch_uid"] = fetch_uid
     if fetched_at is not None:
