@@ -8,7 +8,7 @@ A Benchmark for Evaluating RDF Schema Inference in LLMs.
 
 Japanese version: [README.ja.md](README.ja.md)
 
-> **Important.** Please use Zenodo Version 3.1.0. Earlier Zenodo deposits have been withdrawn.
+> **Important.** Use Zenodo Version 4.0.0, which corresponds to the results reported in the accompanying paper.
 
 ---
 
@@ -17,6 +17,7 @@ Japanese version: [README.ja.md](README.ja.md)
 - [Overview](#overview)
 - [Architecture](#architecture)
 - [RDFS Entailment Rules](#rdfs-entailment-rules)
+- [Available Samples per Entailment Pattern](#available-samples-per-entailment-pattern)
 - [Dataset Variants](#dataset-variants)
 - [Presented Rule Types and Rule Formats](#presented-rule-types-and-rule-formats)
 - [Directory Layout](#directory-layout)
@@ -34,10 +35,10 @@ Japanese version: [README.ja.md](README.ja.md)
 
 ## Overview
 
-RDFS-LLM-Bench systematically evaluates how well LLMs can perform RDFS-based reasoning.
+RDFS-LLM-Bench systematically evaluates how well LLMs can perform RDFS inference.
 The benchmark covers 6 core RDFS entailment rules (rdfs2, rdfs3, rdfs5, rdfs7, rdfs9,
 rdfs11) and 13 multi-rule combinations, yielding 19 entailment patterns in total
-(6 single-rule + 7 two-rule + 6 three-rule). It evaluates LLMs across 7 dataset
+(6 1-rule + 7 2-rule + 6 3-rule). It evaluates LLMs across 7 dataset
 variants under 2 presented rule types × 3 rule formats (= 6 prompting conditions).
 
 ---
@@ -72,7 +73,43 @@ LOD source triples are sampled via SPARQL into 19 entailment-pattern files and t
 | rdfs9 | `<X, rdfs:subClassOf, Y>` and `<a, rdf:type, X>` | `<a, rdf:type, Y>` |
 | rdfs11 | `<X, rdfs:subClassOf, Y>` and `<Y, rdfs:subClassOf, Z>` | `<X, rdfs:subClassOf, Z>` |
 
-Multi-rule entailment patterns (13 = 7 two-rule + 6 three-rule): rdfs2\_3, rdfs2\_7, rdfs2\_9, rdfs3\_7, rdfs3\_9, rdfs5\_7, rdfs9\_11, rdfs2\_3\_7, rdfs2\_3\_9, rdfs2\_5\_7, rdfs2\_9\_11, rdfs3\_5\_7, rdfs3\_9\_11
+Multi-rule entailment patterns (13 = 7 2-rule + 6 3-rule): rdfs2\_3, rdfs2\_7, rdfs2\_9, rdfs3\_7, rdfs3\_9, rdfs5\_7, rdfs9\_11, rdfs2\_3\_7, rdfs2\_3\_9, rdfs2\_5\_7, rdfs2\_9\_11, rdfs3\_5\_7, rdfs3\_9\_11
+
+---
+
+## Available Samples per Entailment Pattern
+
+Number of samples obtainable from each data source strategy when the benchmark was built.
+**Source** is the strategy adopted for each pattern.
+
+- **DBP** — DBpedia only
+- **DBP&WD** — DBpedia + Wikidata
+- **WD&SO** — Wikidata + schema.org
+
+Patterns involving property hierarchies (`rdfs5`, `rdfs7`, and their combinations) cannot be
+built from DBpedia alone, which is why Wikidata and schema.org are used for those patterns.
+
+| Pattern | Source | DBP | DBP&WD | WD&SO |
+|---|---|---:|---:|---:|
+| rdfs2 | DBP | 22,888 | – | – |
+| rdfs3 | DBP | 39,808 | – | – |
+| rdfs5 | WD&SO | 8 | – | 406 |
+| rdfs7 | DBP&WD | 168 | 2,896,964 | – |
+| rdfs9 | DBP | 695,012 | – | – |
+| rdfs11 | DBP | 576 | – | – |
+| rdfs2\_3 | DBP | 18,410 | – | – |
+| rdfs2\_7 | DBP | 484 | – | – |
+| rdfs2\_9 | DBP | 16,040 | – | – |
+| rdfs3\_7 | DBP&WD | 125 | 3,767,791 | – |
+| rdfs3\_9 | DBP | 22,397 | – | – |
+| rdfs5\_7 | DBP&WD | 0 | 1,696,602 | – |
+| rdfs9\_11 | DBP | 159,632 | – | – |
+| rdfs2\_3\_7 | DBP&WD | 112 | 6,199,720 | – |
+| rdfs2\_3\_9 | DBP | 5,477 | – | – |
+| rdfs2\_5\_7 | DBP&WD | 0 | 222,408 | – |
+| rdfs2\_9\_11 | DBP | 7,852 | – | – |
+| rdfs3\_5\_7 | DBP&WD | 0 | 3,393,204 | – |
+| rdfs3\_9\_11 | DBP | 15,480 | – | – |
 
 ---
 
@@ -80,12 +117,12 @@ Multi-rule entailment patterns (13 = 7 two-rule + 6 three-rule): rdfs2\_3, rdfs2
 
 | Variant | Source | Description |
 |---|---|---|
-| `rk` | LOD samples | Raw real-world triples from DBpedia/Wikidata/schema.org |
-| `ls` | LOD samples | Local shuffle: resources swapped/deranged within each entry |
-| `gs` | LOD samples | Global shuffle: resource slots filled with globally shuffled LOD values |
-| `gsc` | LOD samples | Like `gs` but with type-consistent case (PascalCase for classes, camelCase for properties) |
+| `rk` | LOD samples | Real-world Knowledge: raw real-world triples from DBpedia/Wikidata/schema.org |
+| `ls` | LOD samples | Local resource Swapping/Shuffling: subjects/objects, property domain/range, and class/property hierarchies permuted within each entry |
+| `gs` | LOD samples | Global resource Shuffling: all resources shuffled and reassigned globally |
+| `gsc` | LOD samples | GS with Case Conversion: `gs` names reformatted to each type's DBpedia convention (PascalCase for classes, Upper_Snake_Case for instances, camelCase for properties) |
 | `ns` | Standalone | Non-Semantic: random 8-char alphanumeric tokens for all resource slots |
-| `nsc` | Standalone | Non-Semantic with Case: type-specific random tokens (PascalCase / camelCase) |
+| `nsc` | Standalone | NS with Case Conversion: random tokens following each type's DBpedia naming convention (PascalCase / Upper_Snake_Case / camelCase) |
 | `rva` | Standalone | Random Vocabulary Assignment: random DBpedia local names assigned by resource type |
 
 ---
@@ -126,6 +163,12 @@ scripts/
     standalone/       gen_ns.py, gen_nsc.py, gen_rva.py
     shared/           _base.py
     run_all.py
+  validate-dataset/
+    check_{gs,gsc,ls,rva}_counterfactual.py    (per-variant counterfactuality audit)
+    summarize_counterfactuality.py             (aggregate the audit into a summary)
+    gs_gsc_validator_common.py, lod_query_helpers.py,
+    rdfs_pattern_spec.py, validation_numeric.py
+    configs/          {gs,gsc,ls,rva}-validation-config.json
   llm-eval/
     tasks/            build_zeroshot_tasks.py
     adapters/         to_openai_batch.py, to_sequential.py
@@ -134,9 +177,10 @@ scripts/
     eval/             evaluate_outputs.py
     report/           aggregate_scores.py, export_excel.py,
                       compute_composite_metrics.py,
-                      analyze_scaling.py, analyze_rule_accuracy.py
+                      f1_by_dataset_table.py, analyze_scaling.py,
+                      analyze_rule_accuracy.py
     shared/           rule_defs.py, prompt_builder.py, io.py, naming.py,
-                      eval_utils.py
+                      eval_utils.py, numeric.py
     model-config.json
 
 data/
@@ -168,9 +212,22 @@ data/
                         eval-{mode}__{model}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...jsonl
     reports/
       {strict,flex}/
-                        scores-{mode}.csv
-                        scores-{mode}__{model}.xlsx
+        csv/            scores-{mode}.csv
+                        scores-{mode}__{model}.csv
                         composite_metrics-{mode}.csv
+                        f1_by_dataset-{mode}.csv
+                        scaling_analysis-{mode}.csv
+                        rule_accuracy_analysis-{mode}.csv
+        xlsx/           scores-{mode}.xlsx
+                        scores-{mode}__{model}.xlsx
+                        composite_metrics-{mode}.xlsx
+                        f1_by_dataset-{mode}.xlsx
+                        scaling_analysis-{mode}.xlsx
+                        rule_accuracy_analysis-{mode}.xlsx
+  validation/
+    {gs,gsc,ls,rva}/
+      {1,2,3}-rule/     validation__{dataset_variant}__{pattern_id}__n{N}__f-xxxxxxxx__b-xxxxxxxx.json
+    counterfactuality_summary.{csv,xlsx}
 ```
 
 ---
@@ -210,7 +267,7 @@ pip install -r requirements.txt
 
 ### 2. Fetch LOD samples
 
-Single rule:
+1-rule example:
 
 ```bash
 python scripts/fetch-samples/1-rule/fetch_samples_rdfs2.py --date 20260418
@@ -254,6 +311,13 @@ python scripts/build-dataset/from-samples/gen_gs-gsc.py
 python scripts/build-dataset/standalone/gen_ns.py
 python scripts/build-dataset/standalone/gen_nsc.py
 python scripts/build-dataset/standalone/gen_rva.py
+```
+
+Each individual generator accepts `--patterns` to rebuild only selected entailment patterns:
+
+```bash
+python scripts/build-dataset/from-samples/gen_gs-gsc.py --patterns rdfs3_7
+python scripts/build-dataset/standalone/gen_rva.py --patterns rdfs2,rdfs2_3
 ```
 
 Output: `data/datasets/{dataset_variant}/{1,2,3}-rule/dataset__*.json`
@@ -471,7 +535,7 @@ python scripts/llm-eval/eval/evaluate_outputs.py --mode strict
 
 #### Flex mode
 
-Order-based matching. Accepts common spacing variations such as `<s,p,o>`, `<s , p , o>`, and `<s p o>`.
+Order-based matching accepts separator variations such as `<s,p,o>`, `<s , p , o>`, and `<s p o>`; commas and Unicode whitespace are interchangeable separators. After premise echoes are removed, equivalent candidates are normalized and evaluated as an RDF triple set, so repeated correct or incorrect triples each count once.
 
 ```bash
 python scripts/llm-eval/eval/evaluate_outputs.py --mode flex
@@ -575,27 +639,43 @@ python scripts/llm-eval/report/aggregate_scores.py --mode strict
 python scripts/llm-eval/report/aggregate_scores.py --mode flex
 ```
 
-Output: `data/llm-eval/reports/{strict,flex}/scores-{mode}.csv`
+Output:
 
-### Step 6 — Export per-model score sheets
+- `data/llm-eval/reports/{strict,flex}/csv/scores-{mode}.csv` (canonical)
+- `data/llm-eval/reports/{strict,flex}/xlsx/scores-{mode}.xlsx` (human-readable view)
 
-Splits the aggregated CSV from Step 5 into one Excel workbook per model, with a separate sheet for each prompting condition (NRP-full, ARP-name, etc.).
+Metric arithmetic is exact up to serialization: precision/recall/F1 values are
+computed as rational numbers, then written as decimal strings rounded with
+`Decimal(...).quantize(..., rounding=ROUND_HALF_UP)` at up to 12 decimal places.
+The Excel files are views only; paper-facing three-decimal values must be
+rendered from the canonical CSV strings with the same `ROUND_HALF_UP` rule, not
+with Python's `round()`.
+
+### Step 5a — Export per-model score views
+
+Splits the aggregate score table from Step 5 into one canonical CSV and one human-readable Excel workbook per model. The CSV is a filtered copy of `scores-{mode}.csv`; the workbook is a browsing view with three-decimal display formatting.
 
 ```bash
 python scripts/llm-eval/report/export_excel.py --mode strict
 python scripts/llm-eval/report/export_excel.py --mode flex
 ```
 
-Output: `data/llm-eval/reports/{strict,flex}/scores-{mode}__{model}.xlsx`
+Output:
 
-### Step 7 — Compute composite metrics
+- `data/llm-eval/reports/{strict,flex}/csv/scores-{mode}__{model}.csv` (canonical per-model subset)
+- `data/llm-eval/reports/{strict,flex}/xlsx/scores-{mode}__{model}.xlsx` (human-readable view)
+
+### Step 6 — Compute composite metrics
 
 ```bash
 python scripts/llm-eval/report/compute_composite_metrics.py --mode strict
 python scripts/llm-eval/report/compute_composite_metrics.py --mode flex
 ```
 
-Output: `data/llm-eval/reports/{strict,flex}/composite_metrics-{mode}.csv`
+Output:
+
+- `data/llm-eval/reports/{strict,flex}/csv/composite_metrics-{mode}.csv` (canonical)
+- `data/llm-eval/reports/{strict,flex}/xlsx/composite_metrics-{mode}.xlsx` (human-readable view)
 
 Output columns:
 
@@ -620,7 +700,12 @@ python scripts/llm-eval/report/analyze_scaling.py --mode strict
 python scripts/llm-eval/report/analyze_scaling.py --mode flex
 ```
 
-Output: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx`. The workbook contains one sheet per (Rule Format × dataset_variant) combination, with the following sheet name pattern:
+Output:
+
+- `data/llm-eval/reports/{strict,flex}/csv/scaling_analysis-{mode}.csv` (canonical long-form table)
+- `data/llm-eval/reports/{strict,flex}/xlsx/scaling_analysis-{mode}.xlsx` (human-readable view)
+
+The workbook contains one sheet per (Rule Format × dataset_variant) combination, with the following sheet name pattern:
 
 | Rule Format | Sheet name | Examples |
 |---|---|---|
@@ -630,14 +715,17 @@ Output: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx`. The 
 
 ### (Optional) Rule-level analysis
 
-Per-rule F1 breakdown computed only from single-rule entailment patterns under the `full` Rule Format.
+Per-rule F1 breakdown computed only from 1-rule entailment patterns under the `full` Rule Format.
 
 ```bash
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode strict
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode flex
 ```
 
-Output: `data/llm-eval/reports/{strict,flex}/rule_accuracy_analysis-{mode}.xlsx` (one sheet per dataset variant)
+Output:
+
+- `data/llm-eval/reports/{strict,flex}/csv/rule_accuracy_analysis-{mode}.csv` (canonical long-form table)
+- `data/llm-eval/reports/{strict,flex}/xlsx/rule_accuracy_analysis-{mode}.xlsx` (human-readable view; one sheet per dataset variant)
 
 ### (Optional) F1 by dataset variant
 
@@ -648,18 +736,21 @@ python scripts/llm-eval/report/f1_by_dataset_table.py --mode strict
 python scripts/llm-eval/report/f1_by_dataset_table.py --mode flex
 ```
 
-Output: `data/llm-eval/reports/{strict,flex}/f1_by_dataset-{mode}.xlsx`
+Output:
+
+- `data/llm-eval/reports/{strict,flex}/csv/f1_by_dataset-{mode}.csv` (canonical)
+- `data/llm-eval/reports/{strict,flex}/xlsx/f1_by_dataset-{mode}.xlsx` (human-readable view)
 
 ### Paper Table Reproduction
 
-The aggregated outputs in `data/llm-eval/reports/{mode}/` directly correspond to (or contain supersets of) the tables reported in the accompanying paper. They are deterministic and can be regenerated from the published response data by running Steps 5–7 (and the optional steps above):
+The aggregated outputs in `data/llm-eval/reports/{mode}/` directly correspond to (or contain supersets of) the tables reported in the accompanying paper. Files under `csv/` are the canonical machine-readable outputs. Files under `xlsx/` are human-readable views with three-decimal display formatting. They are deterministic and can be regenerated from the published response data by running Steps 5–6 (and the optional steps above):
 
 | Paper table | Output file | Generating script | Notes |
 |---|---|---|---|
-| **Table 7**: Composite Metrics | `composite_metrics-{mode}.csv` | `compute_composite_metrics.py` | Direct 1:1 correspondence |
-| **Table 8**: Average Inference F1 Scores per Dataset Variant | `f1_by_dataset-{mode}.xlsx` | `f1_by_dataset_table.py` | Direct 1:1 correspondence |
-| **Table 9**: Inference F1 Scores by PRT and Number of Rules | `scaling_analysis-{mode}.xlsx` | `analyze_scaling.py` | The xlsx contains all (dataset variant × rule format) sheets; the paper shows 4 specific panels: (RK, full), (NS, full), (GS, full), (NS, name) |
-| **Table 10**: Inference F1 Scores per RDFS Rule (1-rule, full) | `rule_accuracy_analysis-{mode}.xlsx` | `analyze_rule_accuracy.py` | The xlsx contains all 7 dataset variants; the paper shows RK and NS only |
+| **Table 7**: Composite Metrics | `composite_metrics-{mode}.csv` | `compute_composite_metrics.py` | Direct 1:1 correspondence; `.xlsx` view also generated |
+| **Table 8**: Average Inference F1 Scores per Dataset Variant | `f1_by_dataset-{mode}.csv` | `f1_by_dataset_table.py` | Direct 1:1 correspondence; `.xlsx` view also generated |
+| **Table 9**: Inference F1 Scores by PRT and Number of Rules | `scaling_analysis-{mode}.csv` | `analyze_scaling.py` | CSV contains all cells; the paper shows 4 panels: (RK, full), (NS, full), (GS, full), (NS, name). `.xlsx` view also generated |
+| **Table 10**: Inference F1 Scores per RDFS Rule (1-rule, full) | `rule_accuracy_analysis-{mode}.csv` | `analyze_rule_accuracy.py` | CSV contains all 7 dataset variants; the paper shows RK and NS only. `.xlsx` view also generated |
 
 The Zenodo deposit already includes these files under `reports.zip`, so downstream consumers can verify the numerical results without re-running LLM inference.
 
@@ -776,7 +867,7 @@ JSON Lines, one record per response. Reasoning models additionally include a `re
 
 ### Evaluation result (`data/llm-eval/eval/`)
 
-JSON Lines, one record per evaluated request. Per-task precision / recall / F1 are recorded along with the parsed and filtered triples.
+JSON Lines, one record per evaluated request. Per-task precision / recall / F1 are recorded along with the parsed and filtered triples. The example below is a flex result; strict results use `filtered_triples` instead of the four flex audit fields.
 
 ```json
 {
@@ -785,10 +876,15 @@ JSON Lines, one record per evaluated request. Per-task precision / recall / F1 a
   "expected_output": "<Alice, rdf:type, Person>",
   "model_output": "<Alice, rdf:type, Person>",
   "expected_triples": ["Alice, rdf:type, Person"],
-  "filtered_triples": ["Alice, rdf:type, Person"],
-  "precision_triple": 1.0,
-  "recall_triple": 1.0,
-  "f1_triple": 1.0,
+  "target_triples": ["Alice, rdf:type, Person"],
+  "target_empty": false,
+  "premise_filtered_candidates": ["Alice, rdf:type, Person"],
+  "scored_candidates": ["Alice rdf:type Person"],
+  "matched_target_triples": ["Alice, rdf:type, Person"],
+  "unmatched_candidates": [],
+  "precision_triple": "1",
+  "recall_triple": "1",
+  "f1_triple": "1",
   "triple_ok": true,
   "overall_ok": true
 }
@@ -830,6 +926,7 @@ The path in `scripts/build-dataset/lod-sample-config.json` does not match the ac
 - **Multi-rule patterns**: The benchmark evaluates patterns combining up to 3 rules. Combinations of 4 or more rules are out of scope, as obtaining sufficient sample sizes from LOD sources for deeper compositions is difficult.
 - **Output format and matching**: The benchmark uses flat `<s, p, o>` triple notation with syntactic matching (strict / flex modes). Support for richer RDF serializations (e.g., Turtle) and semantic equivalence checking is planned for future extensions.
 - **Premise ordering**: RDFS inference is order-independent (premises are treated as a set), but LLMs may exhibit ordering sensitivity in practice (especially with hierarchical structures). Variance from premise ordering is not characterized.
+- **Counterfactuality**: Perturbed variants are audited against the source LOD rather than guaranteed to be counterfactual; see `data/validation/counterfactuality_summary.csv` for per-variant coverage and counterfactuality rates.
 - **LOD snapshot semantics**: Real-world dataset entries reflect the state of DBpedia / Wikidata / schema.org at fetch time. Subsequent changes to source endpoints do not propagate to the deposit.
 - **Sample sizes**: Each evaluation cell contains 100-400 entries; statistical power on tail behaviors and rare error modes is limited.
 - **Prompting strategy**: The provided task files use single-turn zero-shot prompting. Chain-of-Thought, few-shot, and multi-turn self-correction strategies are out of scope of the supplied tasks but can be investigated by extending the task generation pipeline.
@@ -863,4 +960,3 @@ The datasets are derived from the following sources:
 - [schema.org](https://schema.org) — CC BY-SA 3.0
 
 Data was collected via SPARQL queries against the public endpoints of the above sources.
-

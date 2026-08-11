@@ -8,7 +8,7 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 
 英語版: [README.md](README.md)
 
-> **重要。** Zenodo Version 3.1.0 をご利用ください。旧 Zenodo 公開版は撤回されています。
+> **重要。** Zenodo Version 4.0.0 をご利用ください。本バージョンが論文で報告した結果に対応します。
 
 ---
 
@@ -16,11 +16,12 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 
 - [概要](#概要)
 - [アーキテクチャ](#アーキテクチャ)
-- [RDFS 含意ルール](#rdfs-含意ルール)
-- [データセット種類](#データセット種類)
+- [RDFS Entailment Rules](#rdfs-entailment-rules)
+- [entailment pattern ごとの取得可能サンプル数](#entailment-pattern-ごとの取得可能サンプル数)
+- [Dataset Variants](#dataset-variants)
 - [Presented Rule Type と Rule Format](#presented-rule-type-と-rule-format)
 - [ディレクトリ構成](#ディレクトリ構成)
-- [クイックスタート: 既存データセットで LLM を評価する](#クイックスタート-既存ベンチマークでllmを評価する) — 既成のデータセットを使う
+- [クイックスタート: 既存データセットで LLM を評価する](#クイックスタート-既存データセットで-llm-を評価する) — 既成のデータセットを使う
 - [フルビルド: LOD ソースからデータセットを構築する](#フルビルド-lod-ソースからデータセットを構築する) — 自分でデータセットを構築する
 - [LLM 評価パイプライン](#llm-評価パイプライン) — 両パスの共通部分
 - [データフォーマット](#データフォーマット)
@@ -35,10 +36,10 @@ LLM における RDF Schema 推論を評価するためのベンチマークで�
 ## 概要
 
 RDFS-LLM-Bench は LLM の RDFS 推論能力を体系的に評価するためのベンチマークです。
-6つのコア RDFS 含意ルール（rdfs2, rdfs3, rdfs5, rdfs7, rdfs9, rdfs11）に加えて
-13個の複数ルール組み合わせを扱い、合計 19 種類の含意パターン（1 ルール 6 種 + 2 ルール 7 種 + 3 ルール 6 種）を網羅します。
-評価は 7 種類のデータセットに対し、2 種類の Presented Rule Type × 3 種類の Rule Format
-（= 6 通りのプロンプト条件）で行います。
+6つのコア RDFS entailment rule（rdfs2, rdfs3, rdfs5, rdfs7, rdfs9, rdfs11）に加えて
+13個の複数ルール組み合わせを扱い、合計 19 種類の entailment pattern（1-rule 6 種 + 2-rule 7 種 + 3-rule 6 種）を網羅します。
+評価は 7 種類の dataset variant に対し、2 種類の Presented Rule Type × 3 種類の Rule Format
+（= 6 通りの prompting condition）で行います。
 
 ---
 
@@ -57,36 +58,72 @@ flowchart LR
     Eval --> Reports["Reports<br/>scores, F1,<br/>composite metrics"]
 ```
 
-LOD ソースのトリプルを SPARQL でサンプリングして 19 含意パターンの LOD samples を生成し、4 つの LOD ベース dataset variant (RK, LS, GS, GSC) へと変換します。並行して、3 つの standalone variant (NS, NSC, RVA) はプログラム的に生成します。全 7 variant を 6 prompting condition のゼロショットタスクとしてレンダリングし、LLM の出力を strict / flex モードで評価し、モデル別スコアと 7 種類の複合メトリクス (RI, SI, RRS, SRS, VR, TR, RDI) として集計します。
+LOD ソースのトリプルを SPARQL でサンプリングして 19 entailment pattern の LOD samples を生成し、4 つの LOD ベース dataset variant (RK, LS, GS, GSC) へと変換します。並行して、3 つの standalone variant (NS, NSC, RVA) はプログラム的に生成します。全 7 variant を 6 prompting condition の zero-shot task としてレンダリングし、LLM の出力を strict / flex モードで評価し、モデル別スコアと 7 種類の composite metrics (RI, SI, RRS, SRS, VR, TR, RDI) として集計します。
 
 ---
 
-## RDFS 含意ルール
+## RDFS Entailment Rules
 
-| ルール | 前提 | 結論 |
+| Rule | If … | Then … |
 |---|---|---|
-| rdfs2 | `<i, rdfs:domain, X>` かつ `<a, i, b>` | `<a, rdf:type, X>` |
-| rdfs3 | `<i, rdfs:range, X>` かつ `<a, i, b>` | `<b, rdf:type, X>` |
-| rdfs5 | `<i, rdfs:subPropertyOf, j>` かつ `<j, rdfs:subPropertyOf, k>` | `<i, rdfs:subPropertyOf, k>` |
-| rdfs7 | `<i, rdfs:subPropertyOf, j>` かつ `<a, i, b>` | `<a, j, b>` |
-| rdfs9 | `<X, rdfs:subClassOf, Y>` かつ `<a, rdf:type, X>` | `<a, rdf:type, Y>` |
-| rdfs11 | `<X, rdfs:subClassOf, Y>` かつ `<Y, rdfs:subClassOf, Z>` | `<X, rdfs:subClassOf, Z>` |
+| rdfs2 | `<i, rdfs:domain, X>` and `<a, i, b>` | `<a, rdf:type, X>` |
+| rdfs3 | `<i, rdfs:range, X>` and `<a, i, b>` | `<b, rdf:type, X>` |
+| rdfs5 | `<i, rdfs:subPropertyOf, j>` and `<j, rdfs:subPropertyOf, k>` | `<i, rdfs:subPropertyOf, k>` |
+| rdfs7 | `<i, rdfs:subPropertyOf, j>` and `<a, i, b>` | `<a, j, b>` |
+| rdfs9 | `<X, rdfs:subClassOf, Y>` and `<a, rdf:type, X>` | `<a, rdf:type, Y>` |
+| rdfs11 | `<X, rdfs:subClassOf, Y>` and `<Y, rdfs:subClassOf, Z>` | `<X, rdfs:subClassOf, Z>` |
 
-複数ルールの含意パターン（13 種類 = 2 ルール 7 種 + 3 ルール 6 種）: rdfs2\_3, rdfs2\_7, rdfs2\_9, rdfs3\_7, rdfs3\_9, rdfs5\_7, rdfs9\_11, rdfs2\_3\_7, rdfs2\_3\_9, rdfs2\_5\_7, rdfs2\_9\_11, rdfs3\_5\_7, rdfs3\_9\_11
+複数ルールの entailment pattern（13 種類 = 2-rule 7 種 + 3-rule 6 種）: rdfs2\_3, rdfs2\_7, rdfs2\_9, rdfs3\_7, rdfs3\_9, rdfs5\_7, rdfs9\_11, rdfs2\_3\_7, rdfs2\_3\_9, rdfs2\_5\_7, rdfs2\_9\_11, rdfs3\_5\_7, rdfs3\_9\_11
 
 ---
 
-## データセット種類
+## entailment pattern ごとの取得可能サンプル数
 
-| 種類 | ソース | 説明 |
+ベンチマーク構築時に、各データソース戦略から取得できたサンプル数です。
+**Source** は各パターンで採用した戦略を表します。
+
+- **DBP** — DBpedia のみ
+- **DBP&WD** — DBpedia + Wikidata
+- **WD&SO** — Wikidata + schema.org
+
+プロパティ階層を含むパターン（`rdfs5`、`rdfs7` およびそれらの組み合わせ）は DBpedia 単独では
+十分なサンプルが得られないため、これらのパターンでは Wikidata と schema.org を用いています。
+
+| Pattern | Source | DBP | DBP&WD | WD&SO |
+|---|---|---:|---:|---:|
+| rdfs2 | DBP | 22,888 | – | – |
+| rdfs3 | DBP | 39,808 | – | – |
+| rdfs5 | WD&SO | 8 | – | 406 |
+| rdfs7 | DBP&WD | 168 | 2,896,964 | – |
+| rdfs9 | DBP | 695,012 | – | – |
+| rdfs11 | DBP | 576 | – | – |
+| rdfs2\_3 | DBP | 18,410 | – | – |
+| rdfs2\_7 | DBP | 484 | – | – |
+| rdfs2\_9 | DBP | 16,040 | – | – |
+| rdfs3\_7 | DBP&WD | 125 | 3,767,791 | – |
+| rdfs3\_9 | DBP | 22,397 | – | – |
+| rdfs5\_7 | DBP&WD | 0 | 1,696,602 | – |
+| rdfs9\_11 | DBP | 159,632 | – | – |
+| rdfs2\_3\_7 | DBP&WD | 112 | 6,199,720 | – |
+| rdfs2\_3\_9 | DBP | 5,477 | – | – |
+| rdfs2\_5\_7 | DBP&WD | 0 | 222,408 | – |
+| rdfs2\_9\_11 | DBP | 7,852 | – | – |
+| rdfs3\_5\_7 | DBP&WD | 0 | 3,393,204 | – |
+| rdfs3\_9\_11 | DBP | 15,480 | – | – |
+
+---
+
+## Dataset Variants
+
+| Variant | Source | 説明 |
 |---|---|---|
-| `rk` | LOD サンプル | DBpedia/Wikidata/schema.org の実世界トリプルをそのまま使用 |
-| `ls` | LOD サンプル | ローカルシャッフル: エントリ内でリソースをスワップ・デレンジ |
-| `gs` | LOD サンプル | グローバルシャッフル: リソーススロットにグローバルシャッフルした LOD 値を割り当て |
-| `gsc` | LOD サンプル | `gs` と同様だが型一貫ケース付き（クラス: PascalCase, プロパティ: camelCase）|
-| `ns` | スタンドアロン | 非意味論的: 全リソーススロットにランダム8文字英数字トークン |
-| `nsc` | スタンドアロン | ケース付き非意味論的: 型に応じたランダムトークン（PascalCase / camelCase）|
-| `rva` | スタンドアロン | ランダム語彙割り当て: リソース種別ごとに DBpedia ローカル名をランダム割り当て |
+| `rk` | LOD samples | Real-world Knowledge: DBpedia/Wikidata/schema.org の実世界トリプルをそのまま使用 |
+| `ls` | LOD samples | Local resource Swapping/Shuffling: エントリ内で主語/目的語・プロパティの domain/range・クラス/プロパティ階層を局所的に置換 |
+| `gs` | LOD samples | Global resource Shuffling: 全リソースをグローバルにシャッフルして再割り当て |
+| `gsc` | LOD samples | GS with Case Conversion: `gs` の各名前を該当型の DBpedia 命名規則へ変換（クラス: PascalCase, インスタンス: Upper_Snake_Case, プロパティ: camelCase）|
+| `ns` | Standalone | Non-Semantic: 全リソーススロットにランダム8文字英数字トークン |
+| `nsc` | Standalone | NS with Case Conversion: 各型の DBpedia 命名規則に従うランダムトークン（PascalCase / Upper_Snake_Case / camelCase）|
+| `rva` | Standalone | Random Vocabulary Assignment: リソース種別ごとに DBpedia ローカル名をランダムに割り当て |
 
 ---
 
@@ -101,13 +138,13 @@ LOD ソースのトリプルを SPARQL でサンプリングして 19 含意パ�
 
 各 PRT は次の 3 つの Rule Format のいずれかと組み合わせて使います。
 
-| Format | サフィックス | モデルへの提示内容 |
+| Format | Suffix | モデルへの提示内容 |
 |---|---|---|
-| フル | `-full` | ルール名 + 定義 |
-| 名前のみ | `-name` | ルール名のみ |
-| 定義のみ | `-def` | 定義のみ |
+| Full | `-full` | ルール名 + 定義 |
+| Name only | `-name` | ルール名のみ |
+| Definition only | `-def` | 定義のみ |
 
-PRT と Rule Format を組み合わせると合計 6 通りのプロンプト条件になります。CLI 引数・ファイルパス・JSON の `prompting_condition` フィールドでは `{PRT}-{rule_format}` の形式で表記します:
+PRT と Rule Format を組み合わせると合計 6 通りの prompting condition になります。CLI 引数・ファイルパス・JSON の `prompting_condition` フィールドでは `{PRT}-{rule_format}` の形式で表記します:
 `NRP-full`, `NRP-name`, `NRP-def`, `ARP-full`, `ARP-name`, `ARP-def`。
 
 ---
@@ -126,6 +163,12 @@ scripts/
     standalone/       gen_ns.py, gen_nsc.py, gen_rva.py
     shared/           _base.py
     run_all.py
+  validate-dataset/
+    check_{gs,gsc,ls,rva}_counterfactual.py    (variant ごとの反実仮想監査)
+    summarize_counterfactuality.py             (監査結果を集計)
+    gs_gsc_validator_common.py, lod_query_helpers.py,
+    rdfs_pattern_spec.py, validation_numeric.py
+    configs/          {gs,gsc,ls,rva}-validation-config.json
   llm-eval/
     tasks/            build_zeroshot_tasks.py
     adapters/         to_openai_batch.py, to_sequential.py
@@ -134,9 +177,10 @@ scripts/
     eval/             evaluate_outputs.py
     report/           aggregate_scores.py, export_excel.py,
                       compute_composite_metrics.py,
-                      analyze_scaling.py, analyze_rule_accuracy.py
+                      f1_by_dataset_table.py, analyze_scaling.py,
+                      analyze_rule_accuracy.py
     shared/           rule_defs.py, prompt_builder.py, io.py, naming.py,
-                      eval_utils.py
+                      eval_utils.py, numeric.py
     model-config.json
 
 data/
@@ -168,9 +212,22 @@ data/
                         eval-{mode}__{model}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__...jsonl
     reports/
       {strict,flex}/
-                        scores-{mode}.csv
-                        scores-{mode}__{model}.xlsx
+        csv/            scores-{mode}.csv
+                        scores-{mode}__{model}.csv
                         composite_metrics-{mode}.csv
+                        f1_by_dataset-{mode}.csv
+                        scaling_analysis-{mode}.csv
+                        rule_accuracy_analysis-{mode}.csv
+        xlsx/           scores-{mode}.xlsx
+                        scores-{mode}__{model}.xlsx
+                        composite_metrics-{mode}.xlsx
+                        f1_by_dataset-{mode}.xlsx
+                        scaling_analysis-{mode}.xlsx
+                        rule_accuracy_analysis-{mode}.xlsx
+  validation/
+    {gs,gsc,ls,rva}/
+      {1,2,3}-rule/     validation__{dataset_variant}__{pattern_id}__n{N}__f-xxxxxxxx__b-xxxxxxxx.json
+    counterfactuality_summary.{csv,xlsx}
 ```
 
 ---
@@ -208,15 +265,15 @@ cd data/llm-eval && unzip /path/to/tasks.zip && cd -
 pip install -r requirements.txt
 ```
 
-### 2. LOD サンプルの取得
+### 2. LOD sample の取得
 
-単一ルールの例:
+1-rule の例:
 
 ```bash
 python scripts/fetch-samples/1-rule/fetch_samples_rdfs2.py --date 20260418
 ```
 
-19の含意パターンを一括実行:
+19 の entailment pattern を一括実行:
 
 ```bash
 for f in \
@@ -256,11 +313,18 @@ python scripts/build-dataset/standalone/gen_nsc.py
 python scripts/build-dataset/standalone/gen_rva.py
 ```
 
+各個別生成スクリプトでは、`--patterns` で生成対象の entailment pattern を絞り込めます:
+
+```bash
+python scripts/build-dataset/from-samples/gen_gs-gsc.py --patterns rdfs3_7
+python scripts/build-dataset/standalone/gen_rva.py --patterns rdfs2,rdfs2_3
+```
+
 出力先: `data/datasets/{dataset_variant}/{1,2,3}-rule/dataset__*.json`
 
-### 5. ゼロショットタスクファイルの生成
+### 5. zero-shot task ファイルの生成
 
-生成したデータセットから、各プロンプト条件（PRT × Rule Format）のプロンプトファイルを作ります。
+生成したデータセットから、各 prompting condition（PRT × Rule Format）のプロンプトファイルを作ります。
 
 全 prompting condition × 全 dataset variant を一括生成:
 
@@ -471,7 +535,7 @@ python scripts/llm-eval/eval/evaluate_outputs.py --mode strict
 
 #### Flex モード
 
-順序ベースのマッチング。`<s,p,o>`、`<s , p , o>`、`<s p o>` のような区切り文字や空白の表記揺れを許容します。
+順序ベースのマッチングで、`<s,p,o>`、`<s , p , o>`、`<s p o>` のような区切りの表記揺れを許容し、カンマと Unicode 空白を交換可能な区切りとして扱います。前提トリプルの書き写しを除去した後、等価な候補を正規化して RDF トリプル集合として評価するため、同じ正解または誤りトリプルを繰り返しても各1件として数えます。
 
 ```bash
 python scripts/llm-eval/eval/evaluate_outputs.py --mode flex
@@ -521,7 +585,7 @@ python scripts/llm-eval/report/export_status_excel.py --overwrite
 | × | task ファイルはあるが response がない（未実験）|
 | - | 構造的に定義不可能な組み合わせ（例：rdfs5 × gs/gsc）|
 
-複合メトリクスに必要なセルはアンバー色のあみかけで強調されます。
+composite metrics に必要なセルはアンバー色のあみかけで強調されます。
 
 | オプション | デフォルト | 説明 |
 |-----------|-----------|------|
@@ -575,31 +639,46 @@ python scripts/llm-eval/report/aggregate_scores.py --mode strict
 python scripts/llm-eval/report/aggregate_scores.py --mode flex
 ```
 
-出力先: `data/llm-eval/reports/{strict,flex}/scores-{mode}.csv`
+出力先:
 
-### ステップ 6 — モデル別スコアシートの出力
+- `data/llm-eval/reports/{strict,flex}/csv/scores-{mode}.csv`（正本）
+- `data/llm-eval/reports/{strict,flex}/xlsx/scores-{mode}.xlsx`（閲覧用）
 
-ステップ 5 で集計した CSV を、モデルごとに 1 つの Excel ファイルへ分割します。各ファイル内ではプロンプト条件（NRP-full、ARP-name 等）ごとにシートが分かれます。
+指標値は保存直前まで厳密に扱います。precision/recall/F1 は有理数として計算し、
+CSV/JSON へ保存する時点で `Decimal(...).quantize(..., rounding=ROUND_HALF_UP)`
+により最大12桁の10進文字列へ変換します。Excel は閲覧用です。論文用の3桁値は、
+Python の `round()` ではなく、正本 CSV の文字列から同じ `ROUND_HALF_UP` 規則で
+生成してください。
+
+### ステップ 5a — モデル別スコアビューの出力
+
+ステップ 5 の集計スコア表を、モデルごとに CSV 正本と Excel 閲覧用へ分割します。CSV は `scores-{mode}.csv` のモデル別 subset で、Excel は3桁表示の閲覧用です。
 
 ```bash
 python scripts/llm-eval/report/export_excel.py --mode strict
 python scripts/llm-eval/report/export_excel.py --mode flex
 ```
 
-出力先: `data/llm-eval/reports/{strict,flex}/scores-{mode}__{model}.xlsx`
+出力先:
 
-### ステップ 7 — 複合メトリクスの計算
+- `data/llm-eval/reports/{strict,flex}/csv/scores-{mode}__{model}.csv`（モデル別 subset の正本）
+- `data/llm-eval/reports/{strict,flex}/xlsx/scores-{mode}__{model}.xlsx`（閲覧用）
+
+### ステップ 6 — composite metrics の計算
 
 ```bash
 python scripts/llm-eval/report/compute_composite_metrics.py --mode strict
 python scripts/llm-eval/report/compute_composite_metrics.py --mode flex
 ```
 
-出力先: `data/llm-eval/reports/{strict,flex}/composite_metrics-{mode}.csv`
+出力先:
 
-出力カラム:
+- `data/llm-eval/reports/{strict,flex}/csv/composite_metrics-{mode}.csv`（正本）
+- `data/llm-eval/reports/{strict,flex}/xlsx/composite_metrics-{mode}.xlsx`（閲覧用）
 
-| カラム | 正式名 |
+出力列:
+
+| 列 | 正式名 |
 |---|---|
 | `RI` | Real-world Inference |
 | `SI` | Structural Inference |
@@ -613,14 +692,19 @@ python scripts/llm-eval/report/compute_composite_metrics.py --mode flex
 
 ### （任意）スケーリング分析
 
-1-rule / 2-rule / 3-rule で F1 がどう変化するかを、ルール形式（full / def / name）ごとに分析します：
+1-rule / 2-rule / 3-rule で F1 がどう変化するかを、Rule Format（full / def / name）ごとに分析します：
 
 ```bash
 python scripts/llm-eval/report/analyze_scaling.py --mode strict
 python scripts/llm-eval/report/analyze_scaling.py --mode flex
 ```
 
-出力先: `data/llm-eval/reports/{strict,flex}/scaling_analysis-{mode}.xlsx`。各 (Rule Format × dataset_variant) の組み合わせごとに 1 シートが生成されます。シート名の形式:
+出力先:
+
+- `data/llm-eval/reports/{strict,flex}/csv/scaling_analysis-{mode}.csv`（正本、long-form）
+- `data/llm-eval/reports/{strict,flex}/xlsx/scaling_analysis-{mode}.xlsx`（閲覧用）
+
+Excel には各 (Rule Format × dataset_variant) の組み合わせごとに 1 シートが生成されます。シート名の形式:
 
 | Rule Format | シート名 | 例 |
 |---|---|---|
@@ -630,36 +714,42 @@ python scripts/llm-eval/report/analyze_scaling.py --mode flex
 
 ### （任意）ルールレベル分析
 
-各ルール単体の F1 を、Rule Format が `full` の 1 ルール含意パターンのみから算出します。
+各ルール単体の F1 を、Rule Format が `full` の 1-rule entailment pattern のみから算出します。
 
 ```bash
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode strict
 python scripts/llm-eval/report/analyze_rule_accuracy.py --mode flex
 ```
 
-出力先: `data/llm-eval/reports/{strict,flex}/rule_accuracy_analysis-{mode}.xlsx`（データセット種類ごとに1シート）
+出力先:
+
+- `data/llm-eval/reports/{strict,flex}/csv/rule_accuracy_analysis-{mode}.csv`（正本、long-form）
+- `data/llm-eval/reports/{strict,flex}/xlsx/rule_accuracy_analysis-{mode}.xlsx`（閲覧用、dataset variant ごとに1シート）
 
 ### （任意）データセット別 F1 集計
 
-`full` 設定のみ、6セル（NRP/ARP × {1-rule, 2-rule, 3-rule}）の平均 F1 を、行=LLM・列=データセット種類の単一表にまとめます：
+`full` 設定のみ、6セル（NRP/ARP × {1-rule, 2-rule, 3-rule}）の平均 F1 を、行=LLM・列=dataset variant の単一表にまとめます：
 
 ```bash
 python scripts/llm-eval/report/f1_by_dataset_table.py --mode strict
 python scripts/llm-eval/report/f1_by_dataset_table.py --mode flex
 ```
 
-出力先: `data/llm-eval/reports/{strict,flex}/f1_by_dataset-{mode}.xlsx`
+出力先:
+
+- `data/llm-eval/reports/{strict,flex}/csv/f1_by_dataset-{mode}.csv`（正本）
+- `data/llm-eval/reports/{strict,flex}/xlsx/f1_by_dataset-{mode}.xlsx`（閲覧用）
 
 ### 論文の表の再現
 
-`data/llm-eval/reports/{mode}/` 配下の集計出力は、付随する論文の各表に直接対応（または論文のスーパーセットを含む）します。出力は決定的で、ステップ 5〜7（および上記の任意ステップ）を実行することで公開済みレスポンスデータから再生成可能です。
+`data/llm-eval/reports/{mode}/` 配下の集計出力は、付随する論文の各表に直接対応（または論文のスーパーセットを含む）します。`csv/` 配下が機械可読な正本で、`xlsx/` 配下は3桁表示の閲覧用です。出力は決定的で、ステップ 5〜6（および上記の任意ステップ）を実行することで公開済みレスポンスデータから再生成可能です。
 
 | 論文の表 | 出力ファイル | 生成スクリプト | 備考 |
 |---|---|---|---|
-| **Table 7**: Composite Metrics | `composite_metrics-{mode}.csv` | `compute_composite_metrics.py` | 1 対 1 で直接対応 |
-| **Table 8**: Average Inference F1 Scores per Dataset Variant | `f1_by_dataset-{mode}.xlsx` | `f1_by_dataset_table.py` | 1 対 1 で直接対応 |
-| **Table 9**: Inference F1 Scores by PRT and Number of Rules | `scaling_analysis-{mode}.xlsx` | `analyze_scaling.py` | xlsx は全 (dataset variant × rule format) シートを含む。論文は (RK, full)、(NS, full)、(GS, full)、(NS, name) の 4 パネルを掲載 |
-| **Table 10**: Inference F1 Scores per RDFS Rule (1-rule, full) | `rule_accuracy_analysis-{mode}.xlsx` | `analyze_rule_accuracy.py` | xlsx は全 7 dataset variant を含む。論文は RK と NS のみ掲載 |
+| **Table 7**: Composite Metrics | `composite_metrics-{mode}.csv` | `compute_composite_metrics.py` | 1 対 1 で直接対応。`.xlsx` 閲覧用も生成 |
+| **Table 8**: Average Inference F1 Scores per Dataset Variant | `f1_by_dataset-{mode}.csv` | `f1_by_dataset_table.py` | 1 対 1 で直接対応。`.xlsx` 閲覧用も生成 |
+| **Table 9**: Inference F1 Scores by PRT and Number of Rules | `scaling_analysis-{mode}.csv` | `analyze_scaling.py` | CSV は全セルを含む。論文は (RK, full)、(NS, full)、(GS, full)、(NS, name) の 4 パネルを掲載。`.xlsx` 閲覧用も生成 |
+| **Table 10**: Inference F1 Scores per RDFS Rule (1-rule, full) | `rule_accuracy_analysis-{mode}.csv` | `analyze_rule_accuracy.py` | CSV は全 7 dataset variant を含む。論文は RK と NS のみ掲載。`.xlsx` 閲覧用も生成 |
 
 Zenodo 公開版にはこれらのファイルが `reports.zip` として既に含まれているため、LLM 推論を再実行せずに数値結果を検証できます。
 
@@ -667,7 +757,7 @@ Zenodo 公開版にはこれらのファイルが `reports.zip` として既に�
 
 ## データフォーマット
 
-### LOD サンプル（`data/lod-samples/`）
+### LOD sample（`data/lod-samples/`）
 
 各ルールに対する SPARQL クエリの生結果。`entries` 配列にはエンドポイントから取得した変数バインディングが入ります。
 
@@ -717,7 +807,7 @@ Zenodo 公開版にはこれらのファイルが `reports.zip` として既に�
 
 ### タスクファイル（`data/llm-eval/tasks/zeroshot/`）
 
-プロンプト条件ごとの、レンダリング済みプロンプトを保持するタスクファイル。
+prompting condition ごとの、レンダリング済みプロンプトを保持するタスクファイル。
 
 ```json
 {
@@ -776,7 +866,7 @@ JSON Lines 形式。1 行 1 レスポンス。推論モデルの場合は `reaso
 
 ### 評価結果（`data/llm-eval/eval/`）
 
-JSON Lines 形式。1 リクエストあたり 1 行で、precision / recall / F1 と、抽出・フィルタ済みのトリプルが記録されます。
+JSON Lines 形式。1 リクエストあたり 1 行で、precision / recall / F1 と、抽出・フィルタ済みのトリプルが記録されます。以下は flex の例で、strict では4つの flex 監査フィールドの代わりに `filtered_triples` が記録されます。
 
 ```json
 {
@@ -785,10 +875,15 @@ JSON Lines 形式。1 リクエストあたり 1 行で、precision / recall / F
   "expected_output": "<Alice, rdf:type, Person>",
   "model_output": "<Alice, rdf:type, Person>",
   "expected_triples": ["Alice, rdf:type, Person"],
-  "filtered_triples": ["Alice, rdf:type, Person"],
-  "precision_triple": 1.0,
-  "recall_triple": 1.0,
-  "f1_triple": 1.0,
+  "target_triples": ["Alice, rdf:type, Person"],
+  "target_empty": false,
+  "premise_filtered_candidates": ["Alice, rdf:type, Person"],
+  "scored_candidates": ["Alice rdf:type Person"],
+  "matched_target_triples": ["Alice, rdf:type, Person"],
+  "unmatched_candidates": [],
+  "precision_triple": "1",
+  "recall_triple": "1",
+  "f1_triple": "1",
   "triple_ok": true,
   "overall_ok": true
 }
@@ -800,7 +895,7 @@ JSON Lines 形式。1 リクエストあたり 1 行で、precision / recall / F
 
 | ファイル種別 | パターン |
 |---|---|
-| LOD サンプル | `lod-sample__{pattern_id}__n{N}__f-{uid}.json` |
+| LOD sample | `lod-sample__{pattern_id}__n{N}__f-{uid}.json` |
 | データセット | `dataset__{dataset_variant}__{pattern_id}__n{N}__f-{uid}__b-{uid}.json` |
 | タスク | `task__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}.json` |
 | バッチリクエスト | `batch__{slug}__{prompting_condition}__{dataset_variant}__{pattern_id}__n{N}__{uid}__{uid}.jsonl` |
@@ -830,6 +925,7 @@ SPARQL エンドポイントの負荷や一時的不安定が原因です。時�
 - **複数ルールパターン**: 本ベンチマークは最大 3 ルールの組み合わせを評価対象とします。4 ルール以上の組み合わせは、十分なサンプル数を LOD ソースから取得することが困難なため範囲外としています。
 - **出力フォーマットとマッチング**: `<s, p, o>` のフラットなトリプル表記と構文的マッチング (strict / flex モード) を用います。Turtle 等のより豊かな RDF 構文への対応や意味的等価性の判定は、今後の拡張で予定しています。
 - **前提の提示順序**: RDFS 推論は本来、前提を集合として扱うため順序非依存ですが、LLM は実際には階層構造などで順序感受性を示す可能性があります。前提順序によるばらつきは特性化していません。
+- **反実仮想性**: 摂動 variant は反実仮想であることが保証されているのではなく、source LOD に対する監査で測定しています。variant ごとの coverage と反実仮想率は `data/validation/counterfactuality_summary.csv` を参照してください。
 - **LOD スナップショット**: 実世界データセットは取得時点の DBpedia / Wikidata / schema.org の状態を反映します。ソース側の以降の変更は本公開版には伝播しません。
 - **サンプルサイズ**: 各評価セルは 100〜400 エントリで構成されており、テール事象や稀なエラーモードに対する統計的検出力には限界があります。
 - **プロンプティング戦略**: 提供されるタスクファイルはシングルターン zero-shot プロンプトを用います。Chain-of-Thought、few-shot、マルチターン自己訂正などの戦略は提供タスクの範囲外ですが、タスク生成パイプラインを拡張することで検証可能です。
@@ -863,4 +959,3 @@ SPARQL エンドポイントの負荷や一時的不安定が原因です。時�
 - [schema.org](https://schema.org) — CC BY-SA 3.0
 
 データは各ソースの公開 SPARQL エンドポイントへのクエリにより収集しました。
-
