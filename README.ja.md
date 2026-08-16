@@ -4,11 +4,12 @@
 [![License: CC BY-SA 4.0](https://img.shields.io/badge/Data%20License-CC%20BY--SA%204.0-lightgrey.svg)](LICENSE-DATA)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19867258.svg)](https://doi.org/10.5281/zenodo.19867258)
 
-LLM における RDF Schema 推論を評価するためのベンチマークです。
-
-英語版: [README.md](README.md)
+LLM における RDF Schema 推論を評価するためのベンチマークです。  
+[The 25th International Semantic Web Conference (ISWC 2026)](https://iswc2026.semanticweb.org/) Resource Track に採択されました。
 
 > **重要。** Zenodo Version 4.0.0 をご利用ください。本バージョンが論文で報告した結果に対応します。
+
+英語版: [README.md](README.md) ・ リリース履歴: [CHANGELOG.md](CHANGELOG.md)
 
 ---
 

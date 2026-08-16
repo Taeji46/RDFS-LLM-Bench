@@ -4,11 +4,12 @@
 [![License: CC BY-SA 4.0](https://img.shields.io/badge/Data%20License-CC%20BY--SA%204.0-lightgrey.svg)](LICENSE-DATA)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19867258.svg)](https://doi.org/10.5281/zenodo.19867258)
 
-A Benchmark for Evaluating RDF Schema Inference in LLMs.
-
-Japanese version: [README.ja.md](README.ja.md)
+A Benchmark for Evaluating RDF Schema Inference in LLMs.  
+Accepted at [The 25th International Semantic Web Conference (ISWC 2026)](https://iswc2026.semanticweb.org/), Resource Track.
 
 > **Important.** Use Zenodo Version 4.0.0, which corresponds to the results reported in the accompanying paper.
+
+Japanese version: [README.ja.md](README.ja.md) · Release history: [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
