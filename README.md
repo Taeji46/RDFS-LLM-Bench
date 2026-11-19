@@ -443,12 +443,43 @@ The upload result is recorded in `input-queues/openai-batch/<queue-name>/upload_
 #### Sequential (OpenAI-compatible API)
 
 Targets models with `runner: "sequential-openai-compat"` in `model-config.json`.
-Requires the following variables in `.env`:
+Select the API service using `--provider`. Each entry in
+`scripts/llm-eval/providers.json` defines the following settings:
 
-```
-OPENAI_COMPAT_API_KEY=<your-api-key>
-OPENAI_COMPAT_BASE_URL=https://api.deepinfra.com/v1/openai
-```
+| Field | Meaning |
+|---|---|
+| `base_url` | API endpoint URL |
+| `api_key_env` | Name of the environment variable containing the API key |
+| `response_fields` | Mapping from saved field names to paths in the API response |
+| `extra_body` | Optional additional request parameters; defaults to an empty object |
+
+`response_fields` must include `response`, the path to the final answer.
+Paths use dot notation: `0` in `choices.0.message.content` selects the first array element.
+Missing optional fields are omitted; returned nulls, arrays and objects retain their types.
+`id`, `raw_response`, `attempts`, `error`, `api_base_url` and `request_extra_body` are reserved for the runner.
+
+OpenRouter and DeepInfra are registered as `openrouter` and `deepinfra`.
+Add an entry to this file to use another OpenAI-compatible API; no Python changes are required.
+
+The OpenRouter mapping includes `reasoning`, `reasoning_details`, `reasoning_content`,
+`usage`, `finish_reason`, `model`, `completion_id` and `provider`.
+Its `extra_body.reasoning.exclude` is `false` to retain reasoning returned by the model.
+To also configure reasoning activation or effort, set `enabled`, `effort`, `max_tokens`, etc.
+under `extra_body.reasoning` as supported by the selected model. These settings affect
+reasoning usage and cost. Available reasoning information depends on the model and provider;
+see [OpenRouter Reasoning Tokens](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens).
+
+Set the selected service's key in your local `.env`: `OPENROUTER_API_KEY` for
+OpenRouter or `DEEPINFRA_API_KEY` for DeepInfra. Keys for different services can
+coexist, so switching providers does not require rewriting them. An unregistered
+provider or a missing key stops execution before any API request; there is no
+fallback to another service. `OPENAI_COMPAT_API_KEY` and `OPENAI_COMPAT_BASE_URL`
+are no longer read by this runner.
+
+Each user registers their desired model in their local `model-config.json`
+(see Step 1). Model IDs must match the selected service. If an ID changes,
+regenerate the request files in Step 2 and replace the queued copies, since
+the model ID is embedded in each request.
 
 Create a queue directory:
 
@@ -466,8 +497,11 @@ cp data/llm-eval/requests/sequential/<model>/<prompting_condition>/<dataset_vari
 Run inference:
 
 ```bash
-python scripts/llm-eval/run/run_sequential_openai_compat.py --queue <queue-name>
+python scripts/llm-eval/run/run_sequential_openai_compat.py --provider <provider-name> --queue <queue-name>
 ```
+
+Use the registered provider name for `<provider-name>`. Add `--dry-run` to check
+the queue and provider configuration without an API key or API calls.
 
 #### Sequential (Ollama)
 
@@ -860,7 +894,18 @@ JSON Lines in OpenAI Batch API format.
 
 ### Response file (`data/llm-eval/responses/`)
 
-JSON Lines, one record per response. Reasoning models additionally include a `reasoning_content` field.
+JSON Lines format, with one request result per line.
+The OpenAI-compatible runner keeps the request ID in `id` and the final answer in
+`response`, and adds reasoning traces and other fields using `response_fields` in
+`providers.json`. Structured `reasoning_details`, including text, summaries and
+encrypted data, are preserved without flattening.
+`raw_response` preserves the latest complete API response received by the SDK,
+including fields absent from the mapping. `api_base_url` records the endpoint,
+and `request_extra_body` records additional request settings.
+If the runner retries, `attempts` preserves responses and errors from each attempt;
+`error` is also recorded when no final answer is obtained.
+Evaluation continues to use only the final answer in `response`.
+Existing response files are not retroactively enriched with reasoning information.
 
 ```json
 {"id": "request-1", "response": "<Alice, rdf:type, Person>"}

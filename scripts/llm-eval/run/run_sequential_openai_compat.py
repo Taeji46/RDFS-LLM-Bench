@@ -1,10 +1,10 @@
-"""Run sequential inference via OpenAI-compatible API (e.g. DeepInfra).
+"""Run sequential inference via an OpenAI-compatible API in providers.json.
 
 Create a subdirectory under the queue base and place seq__*.jsonl files there:
   data/llm-eval/requests/input-queues/openai-compat/<queue-name>/
 
 Then run:
-  python run_sequential_openai_compat.py --queue <queue-name>
+  python run_sequential_openai_compat.py --provider <provider-name> --queue <queue-name>
 
 Files already having a response are skipped (use --overwrite to re-run).
 The queue directory is NOT automatically cleared after processing.
@@ -29,12 +29,77 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 import os
 
-from openai import OpenAI
+from openai import APIStatusError, OpenAI
 from shared.io import read_json, read_jsonl, write_jsonl
 
 QUEUE_BASE = PROJECT_ROOT / "data" / "llm-eval" / "requests" / "input-queues" / "openai-compat"
 DEFAULT_RESPONSE_ROOT = PROJECT_ROOT / "data" / "llm-eval" / "responses" / "sequential"
 MODEL_CONFIG_PATH = LLM_EVAL_DIR / "model-config.json"
+PROVIDERS_CONFIG_PATH = LLM_EVAL_DIR / "providers.json"
+
+
+def _load_provider(name: str) -> dict:
+    try:
+        providers = read_json(PROVIDERS_CONFIG_PATH)
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"Cannot read providers.json: {exc}") from exc
+    if not isinstance(providers, dict):
+        raise SystemExit("Invalid providers.json: expected an object")
+    if name not in providers:
+        raise SystemExit(
+            f"Unknown provider: {name}. Available: {', '.join(providers) or '(none)'}"
+        )
+    provider = providers[name]
+    if not isinstance(provider, dict):
+        raise SystemExit(f"Invalid provider configuration: {name}")
+    for field in ("base_url", "api_key_env"):
+        if not isinstance(provider.get(field), str) or not provider[field].strip():
+            raise SystemExit(f"Provider {name}: {field} must be a non-empty string")
+    fields = provider.get("response_fields")
+    if not isinstance(fields, dict) or "response" not in fields:
+        raise SystemExit(f"Provider {name}: response_fields must map response to a JSON path")
+    reserved = {"id", "raw_response", "attempts", "error", "api_base_url", "request_extra_body"}
+    for output, path in fields.items():
+        if not output or output in reserved:
+            raise SystemExit(f"Provider {name}: reserved or empty response field: {output}")
+        if not isinstance(path, str) or not path or any(not part for part in path.split(".")):
+            raise SystemExit(f"Provider {name}: invalid JSON path for {output}")
+    extra_body = provider.get("extra_body", {})
+    if not isinstance(extra_body, dict):
+        raise SystemExit(f"Provider {name}: extra_body must be an object")
+    if any(field in extra_body for field in ("model", "messages", "stream")):
+        raise SystemExit(f"Provider {name}: extra_body cannot override model, messages or stream")
+    return {
+        "base_url": provider["base_url"].strip(),
+        "api_key_env": provider["api_key_env"].strip(),
+        "response_fields": fields,
+        "extra_body": extra_body,
+    }
+
+
+def _create_client(provider: dict) -> OpenAI:
+    key_env = provider["api_key_env"]
+    api_key = os.environ.get(key_env)
+    if not api_key or not api_key.strip():
+        raise SystemExit(f"Environment variable {key_env} is required")
+    return OpenAI(api_key=api_key, base_url=provider["base_url"])
+
+
+def _extract_response_fields(payload: dict, fields: dict[str, str]) -> dict:
+    """Map configured JSON paths to output fields, retaining null and structured values."""
+    extracted = {}
+    for output, path in fields.items():
+        value = payload
+        for part in path.split("."):
+            if isinstance(value, dict) and part in value:
+                value = value[part]
+            elif isinstance(value, list) and part.isdecimal() and int(part) < len(value):
+                value = value[int(part)]
+            else:
+                break
+        else:
+            extracted[output] = value
+    return extracted
 
 
 def _load_model_config() -> dict[str, dict]:
@@ -99,6 +164,7 @@ def _response_dir(response_root: Path, meta: dict) -> Path:
 def run_file(
     req_path: Path,
     client: OpenAI,
+    provider: dict,
     response_root: Path,
     overwrite: bool,
     verbose: bool,
@@ -157,15 +223,29 @@ def run_file(
 
         t0 = time.time()
         content = ""
-        reasoning_content: str | None = None
+        extracted: dict = {}
+        raw_response: dict | None = None
+        attempts: list[dict] = []
+        error: dict | None = None
         for attempt in range(1, 6):
+            attempt_record: dict = {"attempt": attempt}
+            attempts.append(attempt_record)
             try:
-                resp = client.chat.completions.create(model=model, messages=messages)
-                msg = resp.choices[0].message
-                content = msg.content or ""
-                reasoning_content = msg.model_extra.get("reasoning_content") if msg.model_extra else None
+                resp = client.chat.completions.create(
+                    model=model, messages=messages,
+                    extra_body=provider["extra_body"],
+                )
+                raw_response = resp.model_dump(mode="json", exclude_unset=True)
+                attempt_record["raw_response"] = raw_response
+                extracted = _extract_response_fields(raw_response, provider["response_fields"])
+                content = extracted.get("response") or ""
+                if not isinstance(content, str):
+                    raise ValueError("Configured response field must contain text or null")
                 if content:
+                    error = None
                     break
+                error = {"type": "EmptyResponse", "message": "No final answer returned"}
+                attempt_record["error"] = error
                 if attempt < 5:
                     wait = 2 ** attempt
                     print(f"  [WARN] {req_id} attempt {attempt} empty response  retrying in {wait}s")
@@ -173,6 +253,15 @@ def run_file(
                 else:
                     print(f"  [ERROR] {req_id} all 5 attempts returned empty response")
             except Exception as exc:
+                content = ""
+                error = {"type": type(exc).__name__, "message": str(exc)}
+                if isinstance(exc, APIStatusError):
+                    error["status_code"] = exc.status_code
+                    try:
+                        error["body"] = exc.response.json()
+                    except ValueError:
+                        error["body"] = exc.response.text
+                attempt_record["error"] = error
                 if attempt < 5:
                     wait = 2 ** attempt
                     print(f"  [WARN] {req_id} attempt {attempt} failed: {exc}  retrying in {wait}s")
@@ -183,9 +272,15 @@ def run_file(
         elapsed = time.time() - t0
         file_times.append(elapsed)
         global_stats["processed"] += 1
-        row_out: dict = {"id": req_id, "response": content}
-        if reasoning_content is not None:
-            row_out["reasoning_content"] = reasoning_content
+        row_out: dict = {"id": req_id, **extracted, "response": content,
+                         "api_base_url": provider["base_url"],
+                         "request_extra_body": provider["extra_body"]}
+        if raw_response is not None:
+            row_out["raw_response"] = raw_response
+        if len(attempts) > 1:
+            row_out["attempts"] = attempts
+        if error is not None:
+            row_out["error"] = error
         results.append(row_out)
 
         global_elapsed = time.time() - global_stats["start"]
@@ -215,6 +310,8 @@ def main() -> int:
     model_config = _load_model_config()
 
     parser = argparse.ArgumentParser(description="Run sequential inference via OpenAI-compatible API.")
+    parser.add_argument("--provider", required=True,
+                        help="Provider name registered in providers.json")
     parser.add_argument("--queue-base", type=Path, default=QUEUE_BASE,
                         help=f"Base directory for queues (default: {_relpath(QUEUE_BASE)})")
     parser.add_argument("--queue", type=str, default=None,
@@ -228,6 +325,7 @@ def main() -> int:
                         help="Save to response root directly when filename cannot be parsed (instead of skipping)")
     args = parser.parse_args()
 
+    provider = _load_provider(args.provider)
     queue_base = args.queue_base.resolve()
     response_root = args.response_root.resolve()
 
@@ -274,6 +372,7 @@ def main() -> int:
             continue
         filtered.append(p)
 
+    print(f"Provider: {args.provider}")
     print(f"Queue: {_relpath(queue_dir)}")
     print(f"  Total files       : {len(queue_files)}")
     print(f"  This runner       : {len(filtered)}")
@@ -324,9 +423,7 @@ def main() -> int:
         print("(dry-run — no API calls made)")
         return 0
 
-    api_key = os.environ.get("OPENAI_COMPAT_API_KEY") or os.environ.get("DEEPINFRA_API_KEY") or "nokey"
-    base_url = os.environ.get("OPENAI_COMPAT_BASE_URL") or "https://api.deepinfra.com/v1/openai"
-    client = OpenAI(api_key=api_key, base_url=base_url)
+    client = _create_client(provider)
 
     print("=" * 70)
     global_stats = {"start": time.time(), "processed": 0, "total": total_requests}
@@ -336,6 +433,7 @@ def main() -> int:
         record = run_file(
             req_path=req_path,
             client=client,
+            provider=provider,
             response_root=response_root,
             overwrite=args.overwrite,
             verbose=args.verbose,

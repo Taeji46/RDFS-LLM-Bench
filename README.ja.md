@@ -442,13 +442,42 @@ python scripts/llm-eval/run/openai_batch_download.py --queue <queue-name>
 
 #### 逐次実行（OpenAI 互換 API）
 
-`model-config.json` で `runner: "sequential-openai-compat"` のモデル（DeepInfra ホスト等）が対象です。
-`.env` に以下の変数を設定してください:
+`model-config.json` で `runner: "sequential-openai-compat"` のモデルが対象です。
+接続先は `--provider` で選びます。
+`scripts/llm-eval/providers.json` の各項目に、以下を定義します。
 
-```
-OPENAI_COMPAT_API_KEY=<your-api-key>
-OPENAI_COMPAT_BASE_URL=https://api.deepinfra.com/v1/openai
-```
+| 項目 | 内容 |
+|---|---|
+| `base_url` | API の接続先 URL |
+| `api_key_env` | API キーを読み込む環境変数名 |
+| `response_fields` | 保存する項目名と、API レスポンス内の取得元パスの対応 |
+| `extra_body` | 任意の追加リクエストパラメータ。省略時は空のオブジェクト |
+
+`response_fields` の `response` は最終回答の取得元として必須です。
+パスはドット区切りで、`choices.0.message.content` の `0` は配列の先頭要素を表します。
+返されなかった任意項目は省略し、返された `null`・配列・オブジェクトは型を保って保存します。
+`id`・`raw_response`・`attempts`・`error`・`api_base_url`・`request_extra_body` はランナー用の予約項目です。
+
+OpenRouter は `openrouter`、DeepInfra は `deepinfra` として登録済みです。
+別の OpenAI 互換 API も、このファイルに項目を追加すれば利用できます。Python コードの変更は不要です。
+
+OpenRouter の取得項目には `reasoning`・`reasoning_details`・`reasoning_content`、
+`usage`、`finish_reason`、`model`、`completion_id`、`provider` を登録しています。
+`extra_body.reasoning.exclude` は `false` とし、モデルが返す推論情報を除外しません。
+推論の有効化や強度も指定する場合は、利用モデルの対応に合わせて `extra_body.reasoning` に
+`enabled`・`effort`・`max_tokens` 等を設定してください。これらの設定は推論量や費用に影響します。
+返される推論情報はモデル・提供元に依存します。
+仕様は [OpenRouter の Reasoning Tokens](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens) を参照してください。
+
+選んだ接続先のキーを手元の `.env` に設定してください。
+OpenRouter は `OPENROUTER_API_KEY`、DeepInfra は `DEEPINFRA_API_KEY` を使います。
+両方のキーを保持できるため、接続先を切り替えるたびに書き換える必要はありません。
+未登録の接続先やキーの未設定は API 通信前にエラーとなり、別サービスへのフォールバックは行いません。
+従来の `OPENAI_COMPAT_API_KEY` と `OPENAI_COMPAT_BASE_URL` は、このランナーでは読み込みません。
+
+利用したいモデルは各自の手元の `model-config.json` に登録してください（ステップ 1）。
+モデル ID は選んだ接続先で有効なものを指定します。
+ID を変更した場合は、リクエスト内にも ID が保存されているため、ステップ 2 で再生成し、キュー内のコピーも差し替えてください。
 
 キューディレクトリを作成:
 
@@ -466,8 +495,11 @@ cp data/llm-eval/requests/sequential/<model>/<prompting_condition>/<dataset_vari
 推論を実行:
 
 ```bash
-python scripts/llm-eval/run/run_sequential_openai_compat.py --queue <queue-name>
+python scripts/llm-eval/run/run_sequential_openai_compat.py --provider <provider-name> --queue <queue-name>
 ```
+
+`<provider-name>` に登録した接続先名を指定します。
+`--dry-run` を付けると、API キーや API 通信なしでキューと接続先の設定を確認できます。
 
 #### 逐次実行（Ollama）
 
@@ -859,7 +891,16 @@ OpenAI Batch API の JSON Lines 形式。
 
 ### レスポンスファイル（`data/llm-eval/responses/`）
 
-JSON Lines 形式。1 行 1 レスポンス。推論モデルの場合は `reasoning_content` フィールドが追加されます。
+JSON Lines 形式。1 行 1 リクエストの結果を保存します。
+OpenAI 互換ランナーでは `id` にリクエスト ID、`response` に最終回答を記録し、
+`providers.json` の `response_fields` に従って推論トレースなどを追加します。
+`reasoning_details` は、テキスト・要約・暗号化データ等の構造を変えずに保存します。
+`raw_response` には SDK が受け取った直近の API レスポンス全体を保存するため、取得項目に未登録の情報も保持されます。
+接続先は `api_base_url`、追加リクエスト設定は `request_extra_body` に記録します。
+ランナーで再試行した場合は各試行のレスポンスやエラーを `attempts` に残し、
+最終的に回答を取得できなかった場合は `error` も記録します。
+評価では従来どおり `response` の最終回答のみを使用します。
+既存のレスポンスファイルに推論情報が後から追加されることはありません。
 
 ```json
 {"id": "request-1", "response": "<Alice, rdf:type, Person>"}

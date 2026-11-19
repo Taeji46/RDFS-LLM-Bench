@@ -1,0 +1,32 @@
+{
+  "openrouter": {
+    "base_url": "https://openrouter.ai/api/v1",
+    "api_key_env": "OPENROUTER_API_KEY",
+    "extra_body": {
+      "reasoning": {"exclude": false}
+    },
+    "response_fields": {
+      "response": "choices.0.message.content",
+      "reasoning": "choices.0.message.reasoning",
+      "reasoning_details": "choices.0.message.reasoning_details",
+      "reasoning_content": "choices.0.message.reasoning_content",
+      "usage": "usage",
+      "finish_reason": "choices.0.finish_reason",
+      "model": "model",
+      "completion_id": "id",
+      "provider": "provider"
+    }
+  },
+  "deepinfra": {
+    "base_url": "https://api.deepinfra.com/v1/openai",
+    "api_key_env": "DEEPINFRA_API_KEY",
+    "response_fields": {
+      "response": "choices.0.message.content",
+      "reasoning_content": "choices.0.message.reasoning_content",
+      "usage": "usage",
+      "finish_reason": "choices.0.finish_reason",
+      "model": "model",
+      "completion_id": "id"
+    }
+  }
+}
